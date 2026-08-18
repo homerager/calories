@@ -44,3 +44,19 @@ export const mealCreateSchema = z.object({
 })
 
 export type MealCreateInput = z.infer<typeof mealCreateSchema>
+
+/** Редагування наявного запису MealEntry (дата/день не змінюються). */
+export const mealUpdateSchema = z.object({
+  slot: mealSlotSchema.nullish(),
+  name: z.string().trim().min(1, 'Вкажіть назву').max(200, 'Задовга назва'),
+  portionGrams: z.number().positive('Порція має бути > 0').max(5000, 'Нереалістична порція'),
+  kcal: z.number().min(0).max(20000),
+  protein: z.number().min(0).max(2000),
+  fat: z.number().min(0).max(2000),
+  carb: z.number().min(0).max(2000),
+  source: mealSourceSchema.optional(),
+  confidence: z.number().min(0).max(1).nullish(),
+  foodItemId: z.string().min(1).nullish(),
+})
+
+export type MealUpdateInput = z.infer<typeof mealUpdateSchema>

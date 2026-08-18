@@ -66,6 +66,20 @@ export interface MealCreatePayload {
   rawAiJson?: unknown
 }
 
+/** Тіло для редагування запису (PATCH /api/meals/:id). */
+export interface MealUpdatePayload {
+  slot?: MealSlot | null
+  name: string
+  portionGrams: number
+  kcal: number
+  protein: number
+  fat: number
+  carb: number
+  source?: MealSource
+  confidence?: number | null
+  foodItemId?: string | null
+}
+
 /** Норми з профілю (для прогрес-барів). */
 export interface Norms {
   dailyKcal: number | null
@@ -144,6 +158,12 @@ export function useDiary() {
     await refreshMeals()
   }
 
+  /** Оновлює наявний запис і оновлює список/суми. */
+  async function updateMeal(id: string, payload: MealUpdatePayload): Promise<void> {
+    await $fetch(`/api/meals/${id}`, { method: 'PATCH', body: payload })
+    await refreshMeals()
+  }
+
   /** Видаляє запис і оновлює список/суми. */
   async function deleteMeal(id: string): Promise<void> {
     await $fetch(`/api/meals/${id}`, { method: 'DELETE' })
@@ -159,6 +179,7 @@ export function useDiary() {
     recognizeText,
     recognizeImage,
     saveMeal,
+    updateMeal,
     deleteMeal,
     refreshMeals,
   }

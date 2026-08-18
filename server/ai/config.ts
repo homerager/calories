@@ -8,7 +8,8 @@ import type { AiProvider } from '../../prisma/generated/client/enums'
 /** Базові моделі для кожного провайдера (env; перевизначаються налаштуваннями користувача). */
 export const DEFAULT_MODELS: Record<AiProvider, string> = {
   OPENAI: process.env.NUXT_AI_OPENAI_MODEL ?? 'gpt-4o-mini',
-  ANTHROPIC: process.env.NUXT_AI_ANTHROPIC_MODEL ?? 'claude-3-5-sonnet-latest',
+  // Claude 3.x/3.5 виведені з експлуатації — беремо актуальний економний Haiku 4.5.
+  ANTHROPIC: process.env.NUXT_AI_ANTHROPIC_MODEL ?? 'claude-haiku-4-5',
   // Аліас «останній Flash» — не застаріває (gemini-1.5-flash вже вимкнено Google).
   GEMINI: process.env.NUXT_AI_GEMINI_MODEL ?? 'gemini-flash-latest',
 }

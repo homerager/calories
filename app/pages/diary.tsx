@@ -1,9 +1,10 @@
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { NuxtLink } from '#components'
 import { compressImage } from '~/utils/image'
 import {
   useDiary,
   todayIso,
+  type MealItem,
   type MealSlot,
   type MealSource,
   type RecognizeDraft,
@@ -66,8 +67,18 @@ export default defineComponent({
   setup() {
     definePageMeta({ middleware: 'auth' })
 
-    const { date, meals, totals, norms, pending, recognizeText, recognizeImage, saveMeal, deleteMeal } =
-      useDiary()
+    const {
+      date,
+      meals,
+      totals,
+      norms,
+      pending,
+      recognizeText,
+      recognizeImage,
+      saveMeal,
+      updateMeal,
+      deleteMeal,
+    } = useDiary()
 
     const tab = ref<'text' | 'photo'>('text')
     const textInput = ref('')
@@ -93,6 +104,9 @@ export default defineComponent({
     const draftMeta = ref<{ cacheHit: boolean; usingFallback: boolean } | null>(null)
     const saving = ref(false)
     const saveError = ref<string | null>(null)
+    // Коли задано — редагуємо наявний запис, а не створюємо новий.
+    const editingId = ref<string | null>(null)
+    const editorRef = ref<HTMLDivElement | null>(null)
 
     function fillDraft(d: RecognizeDraft, meta: { cacheHit: boolean; usingFallback: boolean } | null) {
       draft.name = d.name
@@ -107,8 +121,38 @@ export default defineComponent({
       draft.foodItemId = d.foodItemId
       draft.per100 = d.per100
       draftMeta.value = meta
+      editingId.value = null
       draftVisible.value = true
       saveError.value = null
+    }
+
+    // Відкриває редактор для наявного запису (режим редагування).
+    function openEditDraft(m: MealItem) {
+      const scale = m.portionGrams > 0 ? 100 / m.portionGrams : 0
+      draft.name = m.name
+      draft.portionGrams = m.portionGrams
+      draft.kcal = m.kcal
+      draft.protein = m.protein
+      draft.fat = m.fat
+      draft.carb = m.carb
+      draft.slot = m.slot ?? ''
+      draft.source = m.source
+      draft.confidence = m.confidence
+      // Скидаємо привʼязку: сервер пере-привʼяже FoodItem за назвою (upsert).
+      draft.foodItemId = null
+      draft.per100 = scale
+        ? {
+            kcal: roundKcal(m.kcal * scale),
+            protein: roundMacro(m.protein * scale),
+            fat: roundMacro(m.fat * scale),
+            carb: roundMacro(m.carb * scale),
+          }
+        : null
+      draftMeta.value = null
+      editingId.value = m.id
+      draftVisible.value = true
+      saveError.value = null
+      nextTick(() => editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
     }
 
     function openManualDraft() {
@@ -132,6 +176,7 @@ export default defineComponent({
     function closeDraft() {
       draftVisible.value = false
       draftMeta.value = null
+      editingId.value = null
     }
 
     // Зміна порції масштабує БЖВ, якщо відома поживність на 100 г.
@@ -195,7 +240,7 @@ export default defineComponent({
       saving.value = true
       saveError.value = null
       try {
-        await saveMeal({
+        const payload = {
           name: draft.name.trim(),
           portionGrams: draft.portionGrams,
           kcal: draft.kcal,
@@ -206,11 +251,18 @@ export default defineComponent({
           source: draft.source,
           confidence: draft.confidence,
           foodItemId: draft.foodItemId,
-        })
-        textInput.value = ''
+        }
+        if (editingId.value) {
+          await updateMeal(editingId.value, payload)
+        } else {
+          await saveMeal(payload)
+          textInput.value = ''
+        }
         closeDraft()
       } catch (err: unknown) {
-        saveError.value = extractErrorMessage(err) ?? 'Не вдалося зберегти запис'
+        saveError.value = editingId.value
+          ? extractErrorMessage(err) ?? 'Не вдалося оновити запис'
+          : extractErrorMessage(err) ?? 'Не вдалося зберегти запис'
       } finally {
         saving.value = false
       }
@@ -404,9 +456,11 @@ export default defineComponent({
 
           {/* Редактор чернетки */}
           {draftVisible.value && (
-            <div class="mt-5 rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+            <div ref={editorRef} class="mt-5 rounded-xl border border-brand-100 bg-brand-50/40 p-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <h3 class="font-semibold text-gray-900">Підтвердіть запис</h3>
+                <h3 class="font-semibold text-gray-900">
+                  {editingId.value ? 'Редагувати запис' : 'Підтвердіть запис'}
+                </h3>
                 <div class="flex items-center gap-2 text-xs">
                   {draftMeta.value?.cacheHit && (
                     <span class="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">З довідника</span>
@@ -414,7 +468,7 @@ export default defineComponent({
                   {draftMeta.value?.usingFallback && (
                     <span class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">Сервісний ключ</span>
                   )}
-                  {draft.confidence != null && draft.source !== 'MANUAL' && (
+                  {!editingId.value && draft.confidence != null && draft.source !== 'MANUAL' && (
                     <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-700">
                       Впевненість {Math.round(draft.confidence * 100)}%
                     </span>
@@ -477,7 +531,13 @@ export default defineComponent({
                   disabled={saving.value}
                   class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving.value ? 'Зберігаємо…' : 'Зберегти'}
+                  {saving.value
+                    ? editingId.value
+                      ? 'Оновлюємо…'
+                      : 'Зберігаємо…'
+                    : editingId.value
+                      ? 'Оновити'
+                      : 'Зберегти'}
                 </button>
                 <button
                   type="button"
@@ -526,14 +586,23 @@ export default defineComponent({
                   </div>
                   <div class="shrink-0 text-right">
                     <div class="font-semibold text-gray-900">{Math.round(m.kcal)} ккал</div>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(m.id)}
-                      disabled={deletingId.value === m.id}
-                      class="mt-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
-                    >
-                      {deletingId.value === m.id ? 'Видаляємо…' : 'Видалити'}
-                    </button>
+                    <div class="mt-1 flex items-center justify-end gap-3 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => openEditDraft(m)}
+                        class="font-medium text-brand-600 hover:text-brand-700"
+                      >
+                        Редагувати
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(m.id)}
+                        disabled={deletingId.value === m.id}
+                        class="text-red-500 hover:text-red-600 disabled:opacity-50"
+                      >
+                        {deletingId.value === m.id ? 'Видаляємо…' : 'Видалити'}
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}

@@ -40,6 +40,13 @@ export default defineNuxtConfig({
     databaseUrl: process.env.DATABASE_URL,
     session: {
       password: process.env.NUXT_SESSION_PASSWORD ?? '',
+      cookie: {
+        sameSite: 'lax',
+        // За замовчуванням Secure (потрібен HTTPS). На HTTP-сервері тимчасово
+        // вимикається через NUXT_SESSION_COOKIE_SECURE=false, інакше браузер
+        // не збереже cookie сесії і вхід «не запам'ятовується».
+        secure: process.env.NUXT_SESSION_COOKIE_SECURE !== 'false',
+      },
     },
     oauth: {
       google: {

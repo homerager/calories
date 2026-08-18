@@ -34,11 +34,51 @@ npm run dev
 
 | Команда             | Опис                              |
 | ------------------- | --------------------------------- |
-| `npm run dev`       | Dev-сервер із HMR                 |
+| `npm run dev`       | Dev-сервер із HMR (порт 3001)     |
 | `npm run build`     | Production-збірка                 |
 | `npm run preview`   | Локальний перегляд збірки         |
+| `npm run start`     | Запуск зібраного сервера (`.output`, порт 3001) |
 | `npm run typecheck` | Перевірка типів (`vue-tsc`)       |
 | `npm run lint`      | Лінтинг (ESLint)                  |
+
+## Запуск зібраного сервера
+
+Після `npm run build` запускайте продакшн-сервер через `npm run start`, а не
+`node .output/server/index.mjs` напряму. Скрипт підвантажує `server-preload.mjs`
+(через `node --import`), який:
+
+- завантажує `.env`;
+- задає коректний абсолютний `import.meta.url` — інакше на **Windows** зібраний
+  сервер падає з `TypeError [ERR_INVALID_FILE_URL_PATH]: File URL path must be
+  absolute` (Nitro лишає плейсхолдер `file:///_entry.js`, а клієнт Prisma не може
+  його розібрати; на Linux помилки немає);
+- ставить порт `3001` за замовчуванням.
+
+### Продакшн через PM2
+
+У корені є [`ecosystem.config.cjs`](./ecosystem.config.cjs). На сервері мають бути
+присутні `.output/`, `server-preload.mjs`, `node_modules/` та `.env` (або задайте
+секрети в `env` конфігу PM2).
+
+```bash
+npm run build
+pm2 start ecosystem.config.cjs        # запуск
+pm2 restart calories                  # рестарт після оновлення
+pm2 logs calories                     # логи
+pm2 save && pm2 startup               # автозапуск після ребуту
+```
+
+npm run build
+npx prisma migrate deploy
+pm2 stop calories || true
+pm2 delete calories || true
+pm2 start npm --name calories -- run start
+pm2 start ecosystem.config.cjs --update-env || pm2 start .output/server/index.mjs --name calories -- --port 3001
+pm2 save
+
+git pull
+npm run build
+pm2 restart calories --update-env
 
 ## Структура проєкту
 
