@@ -1,4 +1,4 @@
-// Prisma schema — Лічильник калорій
+// Prisma schema — Calories
 // Prisma ORM 7: новий генератор `prisma-client` (TS), драйвер-адаптер @prisma/adapter-pg.
 // Конфіг CLI (schema/migrations/seed/datasource) — у prisma.config.ts.
 

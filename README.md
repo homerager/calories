@@ -1,4 +1,4 @@
-# Лічильник калорій
+# Calories
 
 Веб-додаток для підрахунку калорій: розпізнавання їжі за фото/описом (AI), щоденник харчування, норми БЖВ та статистика.
 
@@ -68,6 +68,7 @@ pm2 logs calories                     # логи
 pm2 save && pm2 startup               # автозапуск після ребуту
 ```
 
+cd /var/www/calories
 npm run build
 npx prisma migrate deploy
 pm2 stop calories || true

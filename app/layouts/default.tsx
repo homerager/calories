@@ -1,4 +1,4 @@
-import { defineComponent, ref } from 'vue'
+import { defineComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { NuxtLink } from '#components'
 
 export default defineComponent({
@@ -6,16 +6,40 @@ export default defineComponent({
   setup(_, { slots }) {
     const { loggedIn, user, clear } = useUserSession()
     const loggingOut = ref(false)
+    const menuOpen = ref(false)
+    const menuRef = ref<HTMLElement | null>(null)
+
+    function toggleMenu() {
+      menuOpen.value = !menuOpen.value
+    }
+
+    function closeMenu() {
+      menuOpen.value = false
+    }
+
+    function onDocumentClick(event: MouseEvent) {
+      if (menuRef.value && !menuRef.value.contains(event.target as Node)) {
+        closeMenu()
+      }
+    }
+
+    onMounted(() => document.addEventListener('click', onDocumentClick))
+    onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
 
     async function onLogout() {
       loggingOut.value = true
       try {
         await $fetch('/api/auth/logout', { method: 'POST' })
         await clear()
+        closeMenu()
         await navigateTo('/login')
       } finally {
         loggingOut.value = false
       }
+    }
+
+    function initials(email?: string) {
+      return (email?.trim().charAt(0) || '?').toUpperCase()
     }
 
     return () => (
@@ -23,7 +47,7 @@ export default defineComponent({
         <header class="border-b border-gray-200 bg-white">
           <div class="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
             <NuxtLink to="/" class="text-lg font-semibold text-brand-600">
-              Лічильник калорій
+              Calories
             </NuxtLink>
 
             <nav class="flex items-center gap-3 text-sm">
@@ -57,15 +81,38 @@ export default defineComponent({
                   >
                     Налаштування
                   </NuxtLink>
-                  <span class="hidden text-gray-500 sm:inline">{user.value?.email}</span>
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    disabled={loggingOut.value}
-                    class="rounded-lg border border-gray-300 px-3 py-1.5 font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
-                  >
-                    {loggingOut.value ? 'Виходимо…' : 'Вийти'}
-                  </button>
+
+                  <div class="relative" ref={menuRef}>
+                    <button
+                      type="button"
+                      onClick={toggleMenu}
+                      class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpen.value}
+                      title={user.value?.email}
+                    >
+                      {initials(user.value?.email)}
+                    </button>
+
+                    {menuOpen.value ? (
+                      <div class="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                        <div class="border-b border-gray-100 px-4 py-2">
+                          <p class="text-xs text-gray-500">Ви увійшли як</p>
+                          <p class="truncate text-sm font-medium text-gray-800">
+                            {user.value?.email}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onLogout}
+                          disabled={loggingOut.value}
+                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                        >
+                          {loggingOut.value ? 'Виходимо…' : 'Вийти'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </>
               ) : (
                 <>
@@ -90,7 +137,7 @@ export default defineComponent({
 
         <footer class="border-t border-gray-200 bg-white">
           <div class="mx-auto max-w-3xl px-4 py-4 text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} Лічильник калорій
+            © {new Date().getFullYear()} Calories
           </div>
         </footer>
       </div>
