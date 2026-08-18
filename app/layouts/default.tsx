@@ -1,12 +1,15 @@
-import { defineComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { defineComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { NuxtLink } from '#components'
 
 export default defineComponent({
   name: 'DefaultLayout',
   setup(_, { slots }) {
     const { loggedIn, user, clear } = useUserSession()
+    const route = useRoute()
     const loggingOut = ref(false)
     const menuOpen = ref(false)
+    const mobileOpen = ref(false)
     const menuRef = ref<HTMLElement | null>(null)
 
     function toggleMenu() {
@@ -15,6 +18,14 @@ export default defineComponent({
 
     function closeMenu() {
       menuOpen.value = false
+    }
+
+    function toggleMobile() {
+      mobileOpen.value = !mobileOpen.value
+    }
+
+    function closeMobile() {
+      mobileOpen.value = false
     }
 
     function onDocumentClick(event: MouseEvent) {
@@ -26,12 +37,16 @@ export default defineComponent({
     onMounted(() => document.addEventListener('click', onDocumentClick))
     onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
 
+    // Close the mobile menu whenever the route changes.
+    watch(() => route.fullPath, closeMobile)
+
     async function onLogout() {
       loggingOut.value = true
       try {
         await $fetch('/api/auth/logout', { method: 'POST' })
         await clear()
         closeMenu()
+        closeMobile()
         await navigateTo('/login')
       } finally {
         loggingOut.value = false
@@ -42,6 +57,17 @@ export default defineComponent({
       return (email?.trim().charAt(0) || '?').toUpperCase()
     }
 
+    const desktopLinkClass = 'font-medium text-gray-700 hover:text-brand-600'
+    const mobileLinkClass =
+      'block rounded-lg px-3 py-2 font-medium text-gray-700 transition hover:bg-gray-50'
+
+    const navLinks = [
+      { to: '/diary', label: 'Щоденник' },
+      { to: '/stats', label: 'Статистика' },
+      { to: '/profile', label: 'Профіль' },
+      { to: '/settings/ai-keys', label: 'Налаштування' },
+    ]
+
     return () => (
       <div class="min-h-screen flex flex-col">
         <header class="border-b border-gray-200 bg-white">
@@ -50,37 +76,20 @@ export default defineComponent({
               Calories
             </NuxtLink>
 
-            <nav class="flex items-center gap-3 text-sm">
-              {loggedIn.value ? (
-                <>
-                  <NuxtLink
-                    to="/diary"
-                    class="font-medium text-gray-700 hover:text-brand-600"
-                    activeClass="text-brand-600"
-                  >
-                    Щоденник
-                  </NuxtLink>
-                  <NuxtLink
-                    to="/stats"
-                    class="font-medium text-gray-700 hover:text-brand-600"
-                    activeClass="text-brand-600"
-                  >
-                    Статистика
-                  </NuxtLink>
-                  <NuxtLink
-                    to="/profile"
-                    class="font-medium text-gray-700 hover:text-brand-600"
-                    activeClass="text-brand-600"
-                  >
-                    Профіль
-                  </NuxtLink>
-                  <NuxtLink
-                    to="/settings/ai-keys"
-                    class="font-medium text-gray-700 hover:text-brand-600"
-                    activeClass="text-brand-600"
-                  >
-                    Налаштування
-                  </NuxtLink>
+            {loggedIn.value ? (
+              <>
+                {/* Desktop navigation */}
+                <nav class="hidden items-center gap-3 text-sm md:flex">
+                  {navLinks.map((link) => (
+                    <NuxtLink
+                      key={link.to}
+                      to={link.to}
+                      class={desktopLinkClass}
+                      activeClass="text-brand-600"
+                    >
+                      {link.label}
+                    </NuxtLink>
+                  ))}
 
                   <div class="relative" ref={menuRef}>
                     <button
@@ -113,22 +122,83 @@ export default defineComponent({
                       </div>
                     ) : null}
                   </div>
-                </>
-              ) : (
-                <>
-                  <NuxtLink to="/login" class="font-medium text-gray-700 hover:text-brand-600">
-                    Вхід
-                  </NuxtLink>
-                  <NuxtLink
-                    to="/register"
-                    class="rounded-lg bg-brand-600 px-3 py-1.5 font-medium text-white transition hover:bg-brand-700"
-                  >
-                    Реєстрація
-                  </NuxtLink>
-                </>
-              )}
-            </nav>
+                </nav>
+
+                {/* Mobile burger button */}
+                <button
+                  type="button"
+                  onClick={toggleMobile}
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-300 md:hidden"
+                  aria-label="Меню"
+                  aria-haspopup="menu"
+                  aria-expanded={mobileOpen.value}
+                >
+                  {mobileOpen.value ? (
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  )}
+                </button>
+              </>
+            ) : (
+              <nav class="flex items-center gap-3 text-sm">
+                <NuxtLink to="/login" class={desktopLinkClass}>
+                  Вхід
+                </NuxtLink>
+                <NuxtLink
+                  to="/register"
+                  class="rounded-lg bg-brand-600 px-3 py-1.5 font-medium text-white transition hover:bg-brand-700"
+                >
+                  Реєстрація
+                </NuxtLink>
+              </nav>
+            )}
           </div>
+
+          {/* Mobile menu panel */}
+          {loggedIn.value && mobileOpen.value ? (
+            <nav class="border-t border-gray-100 bg-white px-4 py-3 text-sm md:hidden">
+              <div class="space-y-1">
+                {navLinks.map((link) => (
+                  <NuxtLink
+                    key={link.to}
+                    to={link.to}
+                    class={mobileLinkClass}
+                    activeClass="bg-brand-50 text-brand-600"
+                    onClick={closeMobile}
+                  >
+                    {link.label}
+                  </NuxtLink>
+                ))}
+              </div>
+
+              <div class="mt-3 border-t border-gray-100 pt-3">
+                <div class="flex items-center gap-3 px-3 py-2">
+                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">
+                    {initials(user.value?.email)}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-xs text-gray-500">Ви увійшли як</p>
+                    <p class="truncate text-sm font-medium text-gray-800">
+                      {user.value?.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  disabled={loggingOut.value}
+                  class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-center font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                >
+                  {loggingOut.value ? 'Виходимо…' : 'Вийти'}
+                </button>
+              </div>
+            </nav>
+          ) : null}
         </header>
 
         <main class="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
