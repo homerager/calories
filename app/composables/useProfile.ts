@@ -34,17 +34,20 @@ export interface WeightPoint {
 }
 
 export function useProfile() {
+  // useRequestFetch форвардить cookie сесії під час SSR (на відміну від голого $fetch).
+  const requestFetch = useRequestFetch()
+
   const {
     data: profileData,
     pending: profilePending,
     refresh: refreshProfile,
-  } = useAsyncData('profile', () => $fetch<{ profile: ProfileData | null }>('/api/profile'))
+  } = useAsyncData('profile', () => requestFetch<{ profile: ProfileData | null }>('/api/profile'))
 
   const {
     data: weightData,
     pending: weightPending,
     refresh: refreshWeight,
-  } = useAsyncData('weight-history', () => $fetch<{ entries: WeightPoint[] }>('/api/weight'))
+  } = useAsyncData('weight-history', () => requestFetch<{ entries: WeightPoint[] }>('/api/weight'))
 
   const profile = computed<ProfileData | null>(() => profileData.value?.profile ?? null)
   const weightHistory = computed<WeightPoint[]>(() => weightData.value?.entries ?? [])

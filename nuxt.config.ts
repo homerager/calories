@@ -3,6 +3,11 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-08-01',
   devtools: { enabled: true },
 
+  // Проєкт завжди стартує на порту 3001 (dev-сервер).
+  devServer: {
+    port: 3001,
+  },
+
   modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', 'nuxt-auth-utils'],
 
   tailwindcss: {
@@ -45,6 +50,18 @@ export default defineNuxtConfig({
         clientId: process.env.NUXT_OAUTH_GITHUB_CLIENT_ID,
         clientSecret: process.env.NUXT_OAUTH_GITHUB_CLIENT_SECRET,
       },
+    },
+    // AI-шар: сервісні (fallback) ключі, моделі, провайдер за замовчуванням, квота.
+    ai: {
+      openaiApiKey: process.env.NUXT_AI_OPENAI_API_KEY,
+      anthropicApiKey: process.env.NUXT_AI_ANTHROPIC_API_KEY,
+      geminiApiKey: process.env.NUXT_AI_GEMINI_API_KEY,
+      openaiModel: process.env.NUXT_AI_OPENAI_MODEL,
+      anthropicModel: process.env.NUXT_AI_ANTHROPIC_MODEL,
+      geminiModel: process.env.NUXT_AI_GEMINI_MODEL,
+      defaultProvider: process.env.NUXT_AI_DEFAULT_PROVIDER,
+      freeQuotaLimit: process.env.NUXT_AI_FREE_QUOTA_LIMIT,
+      freeQuotaPeriodDays: process.env.NUXT_AI_FREE_QUOTA_PERIOD_DAYS,
     },
     // Public keys exposed to the client
     public: {},

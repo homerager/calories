@@ -30,11 +30,32 @@ export default defineComponent({
               {loggedIn.value ? (
                 <>
                   <NuxtLink
+                    to="/diary"
+                    class="font-medium text-gray-700 hover:text-brand-600"
+                    activeClass="text-brand-600"
+                  >
+                    Щоденник
+                  </NuxtLink>
+                  <NuxtLink
+                    to="/stats"
+                    class="font-medium text-gray-700 hover:text-brand-600"
+                    activeClass="text-brand-600"
+                  >
+                    Статистика
+                  </NuxtLink>
+                  <NuxtLink
                     to="/profile"
                     class="font-medium text-gray-700 hover:text-brand-600"
                     activeClass="text-brand-600"
                   >
                     Профіль
+                  </NuxtLink>
+                  <NuxtLink
+                    to="/settings/ai-keys"
+                    class="font-medium text-gray-700 hover:text-brand-600"
+                    activeClass="text-brand-600"
+                  >
+                    Налаштування
                   </NuxtLink>
                   <span class="hidden text-gray-500 sm:inline">{user.value?.email}</span>
                   <button

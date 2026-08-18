@@ -1,0 +1,546 @@
+import { defineComponent, reactive, ref } from 'vue'
+import { NuxtLink } from '#components'
+import { compressImage } from '~/utils/image'
+import {
+  useDiary,
+  todayIso,
+  type MealSlot,
+  type MealSource,
+  type RecognizeDraft,
+} from '~/composables/useDiary'
+
+const inputClass =
+  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
+const labelClass = 'block text-sm font-medium text-gray-700'
+
+const SLOT_OPTIONS: { value: MealSlot; label: string }[] = [
+  { value: 'BREAKFAST', label: 'Сніданок' },
+  { value: 'LUNCH', label: 'Обід' },
+  { value: 'DINNER', label: 'Вечеря' },
+  { value: 'SNACK', label: 'Перекус' },
+]
+
+const SLOT_LABELS: Record<MealSlot, string> = {
+  BREAKFAST: 'Сніданок',
+  LUNCH: 'Обід',
+  DINNER: 'Вечеря',
+  SNACK: 'Перекус',
+}
+
+const SOURCE_LABELS: Record<MealSource, string> = {
+  AI_PHOTO: 'AI · фото',
+  AI_TEXT: 'AI · текст',
+  MANUAL: 'Вручну',
+}
+
+const roundKcal = (v: number) => Math.round(v)
+const roundMacro = (v: number) => Math.round(v * 10) / 10
+
+function parseNum(value: string): number {
+  const n = Number(value.trim().replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
+}
+
+function shiftIso(iso: string, deltaDays: number): string {
+  const d = new Date(`${iso}T12:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + deltaDays)
+  return d.toISOString().slice(0, 10)
+}
+
+interface DraftForm {
+  name: string
+  portionGrams: number
+  kcal: number
+  protein: number
+  fat: number
+  carb: number
+  slot: MealSlot | ''
+  source: MealSource
+  confidence: number | null
+  foodItemId: string | null
+  per100: { kcal: number; protein: number; fat: number; carb: number } | null
+}
+
+export default defineComponent({
+  name: 'DiaryPage',
+  setup() {
+    definePageMeta({ middleware: 'auth' })
+
+    const { date, meals, totals, norms, pending, recognizeText, recognizeImage, saveMeal, deleteMeal } =
+      useDiary()
+
+    const tab = ref<'text' | 'photo'>('text')
+    const textInput = ref('')
+    const recognizing = ref(false)
+    const recognizeError = ref<string | null>(null)
+    const fileInput = ref<HTMLInputElement | null>(null)
+
+    // Чернетка (редагована перед збереженням).
+    const draft = reactive<DraftForm>({
+      name: '',
+      portionGrams: 100,
+      kcal: 0,
+      protein: 0,
+      fat: 0,
+      carb: 0,
+      slot: '',
+      source: 'MANUAL',
+      confidence: null,
+      foodItemId: null,
+      per100: null,
+    })
+    const draftVisible = ref(false)
+    const draftMeta = ref<{ cacheHit: boolean; usingFallback: boolean } | null>(null)
+    const saving = ref(false)
+    const saveError = ref<string | null>(null)
+
+    function fillDraft(d: RecognizeDraft, meta: { cacheHit: boolean; usingFallback: boolean } | null) {
+      draft.name = d.name
+      draft.portionGrams = d.portionGrams
+      draft.kcal = d.kcal
+      draft.protein = d.protein
+      draft.fat = d.fat
+      draft.carb = d.carb
+      draft.slot = ''
+      draft.source = d.suggestedSource
+      draft.confidence = d.confidence
+      draft.foodItemId = d.foodItemId
+      draft.per100 = d.per100
+      draftMeta.value = meta
+      draftVisible.value = true
+      saveError.value = null
+    }
+
+    function openManualDraft() {
+      fillDraft(
+        {
+          name: '',
+          portionGrams: 100,
+          kcal: 0,
+          protein: 0,
+          fat: 0,
+          carb: 0,
+          confidence: 1,
+          per100: { kcal: 0, protein: 0, fat: 0, carb: 0 },
+          foodItemId: null,
+          suggestedSource: 'MANUAL',
+        },
+        null,
+      )
+    }
+
+    function closeDraft() {
+      draftVisible.value = false
+      draftMeta.value = null
+    }
+
+    // Зміна порції масштабує БЖВ, якщо відома поживність на 100 г.
+    function onPortionChange(value: number) {
+      draft.portionGrams = value
+      const p = draft.per100
+      if (p && (p.kcal || p.protein || p.fat || p.carb)) {
+        const k = value / 100
+        draft.kcal = roundKcal(p.kcal * k)
+        draft.protein = roundMacro(p.protein * k)
+        draft.fat = roundMacro(p.fat * k)
+        draft.carb = roundMacro(p.carb * k)
+      }
+    }
+
+    async function onRecognizeText() {
+      const text = textInput.value.trim()
+      if (text.length < 2) {
+        recognizeError.value = 'Опишіть страву детальніше'
+        return
+      }
+      recognizing.value = true
+      recognizeError.value = null
+      try {
+        const res = await recognizeText(text)
+        fillDraft(res.draft, { cacheHit: res.cacheHit, usingFallback: res.usingFallback })
+      } catch (err: unknown) {
+        recognizeError.value = extractErrorMessage(err) ?? 'Не вдалося розпізнати'
+      } finally {
+        recognizing.value = false
+      }
+    }
+
+    async function onFileChange(e: Event) {
+      const target = e.target as HTMLInputElement
+      const file = target.files?.[0]
+      if (!file) return
+      recognizing.value = true
+      recognizeError.value = null
+      try {
+        const { base64, mimeType } = await compressImage(file)
+        const res = await recognizeImage(base64, mimeType)
+        fillDraft(res.draft, { cacheHit: res.cacheHit, usingFallback: res.usingFallback })
+      } catch (err: unknown) {
+        recognizeError.value = extractErrorMessage(err) ?? 'Не вдалося розпізнати фото'
+      } finally {
+        recognizing.value = false
+        target.value = ''
+      }
+    }
+
+    async function onSaveDraft() {
+      if (!draft.name.trim()) {
+        saveError.value = 'Вкажіть назву страви'
+        return
+      }
+      if (draft.portionGrams <= 0) {
+        saveError.value = 'Порція має бути більшою за 0'
+        return
+      }
+      saving.value = true
+      saveError.value = null
+      try {
+        await saveMeal({
+          name: draft.name.trim(),
+          portionGrams: draft.portionGrams,
+          kcal: draft.kcal,
+          protein: draft.protein,
+          fat: draft.fat,
+          carb: draft.carb,
+          slot: draft.slot || null,
+          source: draft.source,
+          confidence: draft.confidence,
+          foodItemId: draft.foodItemId,
+        })
+        textInput.value = ''
+        closeDraft()
+      } catch (err: unknown) {
+        saveError.value = extractErrorMessage(err) ?? 'Не вдалося зберегти запис'
+      } finally {
+        saving.value = false
+      }
+    }
+
+    const deletingId = ref<string | null>(null)
+    async function onDelete(id: string) {
+      deletingId.value = id
+      try {
+        await deleteMeal(id)
+      } finally {
+        deletingId.value = null
+      }
+    }
+
+    function progressBar(label: string, value: number, norm: number | null, unit: string, tint: string) {
+      const pct = norm && norm > 0 ? Math.min(100, Math.round((value / norm) * 100)) : 0
+      const over = norm != null && value > norm
+      return (
+        <div>
+          <div class="flex items-baseline justify-between text-sm">
+            <span class="font-medium text-gray-700">{label}</span>
+            <span class="text-gray-500">
+              <strong class={over ? 'text-red-600' : 'text-gray-800'}>{Math.round(value)}</strong>
+              {norm != null ? ` / ${norm}` : ''} {unit}
+            </span>
+          </div>
+          <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              class={`h-full rounded-full transition-all ${over ? 'bg-red-400' : tint}`}
+              style={{ width: `${norm && norm > 0 ? pct : value > 0 ? 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )
+    }
+
+    function draftField(
+      key: 'kcal' | 'protein' | 'fat' | 'carb',
+      label: string,
+    ) {
+      return (
+        <div>
+          <label class={labelClass} for={`draft-${key}`}>{label}</label>
+          <input
+            id={`draft-${key}`}
+            type="number"
+            min={0}
+            step="0.1"
+            value={draft[key]}
+            onInput={(e) => (draft[key] = parseNum((e.target as HTMLInputElement).value))}
+            class={inputClass}
+          />
+        </div>
+      )
+    }
+
+    return () => (
+      <section class="space-y-6">
+        {/* Заголовок + навігація по датах */}
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h1 class="text-2xl font-bold text-gray-900">Щоденник</h1>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => (date.value = shiftIso(date.value, -1))}
+              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              aria-label="Попередній день"
+            >
+              ←
+            </button>
+            <input
+              type="date"
+              max={todayIso()}
+              value={date.value}
+              onInput={(e) => (date.value = (e.target as HTMLInputElement).value || todayIso())}
+              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            />
+            <button
+              type="button"
+              onClick={() => (date.value = shiftIso(date.value, 1))}
+              disabled={date.value >= todayIso()}
+              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              aria-label="Наступний день"
+            >
+              →
+            </button>
+            <button
+              type="button"
+              onClick={() => (date.value = todayIso())}
+              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Сьогодні
+            </button>
+          </div>
+        </div>
+
+        {/* Прогрес відносно норм */}
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <h2 class="text-lg font-semibold text-gray-900">Прогрес дня</h2>
+          <div class="mt-4 space-y-3">
+            {progressBar('Калорії', totals.value.totalKcal, norms.value.dailyKcal, 'ккал', 'bg-brand-500')}
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {progressBar('Білки', totals.value.totalProtein, norms.value.proteinGrams, 'г', 'bg-sky-400')}
+              {progressBar('Жири', totals.value.totalFat, norms.value.fatGrams, 'г', 'bg-amber-400')}
+              {progressBar('Вуглеводи', totals.value.totalCarb, norms.value.carbGrams, 'г', 'bg-rose-400')}
+            </div>
+          </div>
+          {norms.value.dailyKcal == null && (
+            <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              Заповніть профіль, щоб бачити цільові норми.
+            </p>
+          )}
+        </div>
+
+        {/* Додавання */}
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <h2 class="text-lg font-semibold text-gray-900">Додати їжу</h2>
+
+          <div class="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => (tab.value = 'text')}
+              class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'text' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              Текст
+            </button>
+            <button
+              type="button"
+              onClick={() => (tab.value = 'photo')}
+              class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'photo' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              Фото
+            </button>
+            <button
+              type="button"
+              onClick={openManualDraft}
+              class="ml-auto rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Вручну
+            </button>
+          </div>
+
+          {tab.value === 'text' ? (
+            <div class="mt-4 flex flex-wrap items-end gap-3">
+              <div class="min-w-0 flex-1">
+                <label class={labelClass} for="foodText">Опис страви</label>
+                <input
+                  id="foodText"
+                  type="text"
+                  value={textInput.value}
+                  onInput={(e) => (textInput.value = (e.target as HTMLInputElement).value)}
+                  onKeydown={(e) => e.key === 'Enter' && onRecognizeText()}
+                  class={inputClass}
+                  placeholder="напр. тарілка гречки з куркою, 300 г"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={onRecognizeText}
+                disabled={recognizing.value}
+                class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {recognizing.value ? 'Розпізнаємо…' : 'Розпізнати'}
+              </button>
+            </div>
+          ) : (
+            <div class="mt-4">
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={onFileChange}
+                class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:font-medium file:text-white hover:file:bg-brand-700"
+              />
+              <p class="mt-2 text-xs text-gray-500">
+                Фото стискається на пристрої перед відправкою. {recognizing.value && 'Розпізнаємо…'}
+              </p>
+            </div>
+          )}
+
+          {recognizeError.value && (
+            <div class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
+              <p>{recognizeError.value}</p>
+              <NuxtLink to="/settings/ai-keys" class="mt-1 inline-block font-medium text-red-800 underline">
+                Перейти до налаштувань AI
+              </NuxtLink>
+            </div>
+          )}
+
+          {/* Редактор чернетки */}
+          {draftVisible.value && (
+            <div class="mt-5 rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3 class="font-semibold text-gray-900">Підтвердіть запис</h3>
+                <div class="flex items-center gap-2 text-xs">
+                  {draftMeta.value?.cacheHit && (
+                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">З довідника</span>
+                  )}
+                  {draftMeta.value?.usingFallback && (
+                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">Сервісний ключ</span>
+                  )}
+                  {draft.confidence != null && draft.source !== 'MANUAL' && (
+                    <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-700">
+                      Впевненість {Math.round(draft.confidence * 100)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                  <label class={labelClass} for="draft-name">Назва</label>
+                  <input
+                    id="draft-name"
+                    type="text"
+                    value={draft.name}
+                    onInput={(e) => (draft.name = (e.target as HTMLInputElement).value)}
+                    class={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label class={labelClass} for="draft-portion">Порція, г</label>
+                  <input
+                    id="draft-portion"
+                    type="number"
+                    min={1}
+                    step="1"
+                    value={draft.portionGrams}
+                    onInput={(e) => onPortionChange(parseNum((e.target as HTMLInputElement).value))}
+                    class={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label class={labelClass} for="draft-slot">Прийом їжі</label>
+                  <select
+                    id="draft-slot"
+                    value={draft.slot}
+                    onChange={(e) => (draft.slot = (e.target as HTMLSelectElement).value as MealSlot | '')}
+                    class={inputClass}
+                  >
+                    <option value="">Не вказано</option>
+                    {SLOT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {draftField('kcal', 'Калорії, ккал')}
+                {draftField('protein', 'Білки, г')}
+                {draftField('fat', 'Жири, г')}
+                {draftField('carb', 'Вуглеводи, г')}
+              </div>
+
+              {saveError.value && <p class="mt-3 text-sm text-red-600">{saveError.value}</p>}
+
+              <div class="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={onSaveDraft}
+                  disabled={saving.value}
+                  class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving.value ? 'Зберігаємо…' : 'Зберегти'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDraft}
+                  class="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Скасувати
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Записи дня */}
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="flex items-baseline justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">Записи</h2>
+            <span class="text-sm text-gray-500">
+              Разом: <strong class="text-gray-800">{Math.round(totals.value.totalKcal)} ккал</strong>
+            </span>
+          </div>
+
+          {pending.value && meals.value.length === 0 ? (
+            <p class="mt-4 text-sm text-gray-400">Завантаження…</p>
+          ) : meals.value.length === 0 ? (
+            <p class="mt-4 rounded-lg bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
+              Ще немає записів за цей день.
+            </p>
+          ) : (
+            <ul class="mt-4 divide-y divide-gray-100">
+              {meals.value.map((m) => (
+                <li key={m.id} class="flex items-center gap-3 py-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <span class="truncate font-medium text-gray-900">{m.name}</span>
+                      {m.slot && (
+                        <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
+                          {SLOT_LABELS[m.slot]}
+                        </span>
+                      )}
+                    </div>
+                    <div class="mt-0.5 text-xs text-gray-500">
+                      {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
+                      <span class="text-gray-400">{SOURCE_LABELS[m.source]}</span>
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <div class="font-semibold text-gray-900">{Math.round(m.kcal)} ккал</div>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(m.id)}
+                      disabled={deletingId.value === m.id}
+                      class="mt-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+                    >
+                      {deletingId.value === m.id ? 'Видаляємо…' : 'Видалити'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    )
+  },
+})

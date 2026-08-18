@@ -28,7 +28,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Застосунок буде доступний на http://localhost:3000.
+Застосунок буде доступний на http://localhost:3001.
 
 ## Скрипти
 

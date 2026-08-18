@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
 
   const entries = logs
     .map((log) => {
-      let weightKg: number | null = null
+      let weightKg: number | null
       try {
         weightKg = Number(decrypt(log.weightEnc))
       } catch {
