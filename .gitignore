@@ -1,0 +1,37 @@
+# Nuxt / Nitro build output
+.nuxt
+.output
+.data
+.nitro
+.cache
+dist
+
+# Dependencies
+node_modules
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Prisma local artifacts
+prisma/*.db
+prisma/*.db-journal
+# Generated Prisma Client (Prisma 7: emitted into the repo tree)
+prisma/generated
+
+# Editor / OS
+.DS_Store
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
