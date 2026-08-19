@@ -1,4 +1,4 @@
-import { defineComponent, nextTick, reactive, ref } from 'vue'
+import { computed, defineComponent, nextTick, reactive, ref } from 'vue'
 import { NuxtLink } from '#components'
 import { compressImage } from '~/utils/image'
 import {
@@ -22,17 +22,21 @@ const SLOT_OPTIONS: { value: MealSlot; label: string }[] = [
   { value: 'SNACK', label: 'Перекус' },
 ]
 
-const SLOT_LABELS: Record<MealSlot, string> = {
-  BREAKFAST: 'Сніданок',
-  LUNCH: 'Обід',
-  DINNER: 'Вечеря',
-  SNACK: 'Перекус',
-}
-
 const SOURCE_LABELS: Record<MealSource, string> = {
   AI_PHOTO: 'AI · фото',
   AI_TEXT: 'AI · текст',
   MANUAL: 'Вручну',
+}
+
+// Порядок груп у списку записів. 'OTHER' — записи без прийому їжі.
+type SlotKey = MealSlot | 'OTHER'
+const SLOT_GROUP_ORDER: SlotKey[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK', 'OTHER']
+const SLOT_GROUP_LABELS: Record<SlotKey, string> = {
+  BREAKFAST: 'Сніданок',
+  LUNCH: 'Обід',
+  DINNER: 'Вечеря',
+  SNACK: 'Перекус',
+  OTHER: 'Без прийому їжі',
 }
 
 const roundKcal = (v: number) => Math.round(v)
@@ -93,6 +97,24 @@ export default defineComponent({
       deleteMeal,
       fetchMyDishes,
     } = useDiary()
+
+    // Групування записів дня за прийомом їжі (зі збереженням хронології всередині групи).
+    const groupedMeals = computed(() => {
+      const buckets = new Map<SlotKey, { items: MealItem[]; kcal: number }>()
+      for (const m of meals.value) {
+        const key: SlotKey = m.slot ?? 'OTHER'
+        const bucket = buckets.get(key) ?? { items: [], kcal: 0 }
+        bucket.items.push(m)
+        bucket.kcal += m.kcal
+        buckets.set(key, bucket)
+      }
+      return SLOT_GROUP_ORDER.filter((k) => buckets.has(k)).map((k) => ({
+        key: k,
+        label: SLOT_GROUP_LABELS[k],
+        items: buckets.get(k)!.items,
+        kcal: buckets.get(k)!.kcal,
+      }))
+    })
 
     const tab = ref<'text' | 'photo' | 'mine'>('text')
 
@@ -379,6 +401,40 @@ export default defineComponent({
             class={inputClass}
           />
         </div>
+      )
+    }
+
+    function renderMeal(m: MealItem) {
+      return (
+        <li key={m.id} class="flex items-center gap-3 py-3">
+          <div class="min-w-0 flex-1">
+            <span class="truncate font-medium text-gray-900">{m.name}</span>
+            <div class="mt-0.5 text-xs text-gray-500">
+              {formatDay(m.date)}, {formatTime(m.createdAt)} · {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
+              <span class="text-gray-400">{SOURCE_LABELS[m.source]}</span>
+            </div>
+          </div>
+          <div class="shrink-0 text-right">
+            <div class="font-semibold text-gray-900">{Math.round(m.kcal)} ккал</div>
+            <div class="mt-1 flex items-center justify-end gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => openEditDraft(m)}
+                class="font-medium text-brand-600 hover:text-brand-700"
+              >
+                Редагувати
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(m.id)}
+                disabled={deletingId.value === m.id}
+                class="text-red-500 hover:text-red-600 disabled:opacity-50"
+              >
+                {deletingId.value === m.id ? 'Видаляємо…' : 'Видалити'}
+              </button>
+            </div>
+          </div>
+        </li>
       )
     }
 
@@ -672,46 +728,17 @@ export default defineComponent({
               Ще немає записів за цей день.
             </p>
           ) : (
-            <ul class="mt-4 divide-y divide-gray-100">
-              {meals.value.map((m) => (
-                <li key={m.id} class="flex items-center gap-3 py-3">
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                      <span class="truncate font-medium text-gray-900">{m.name}</span>
-                      {m.slot && (
-                        <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
-                          {SLOT_LABELS[m.slot]}
-                        </span>
-                      )}
-                    </div>
-                    <div class="mt-0.5 text-xs text-gray-500">
-                      {formatDay(m.date)}, {formatTime(m.createdAt)} · {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
-                      <span class="text-gray-400">{SOURCE_LABELS[m.source]}</span>
-                    </div>
+            <div class="mt-4 space-y-5">
+              {groupedMeals.value.map((group) => (
+                <div key={group.key}>
+                  <div class="flex items-baseline justify-between border-b border-gray-100 pb-1">
+                    <h3 class="text-sm font-semibold text-gray-700">{group.label}</h3>
+                    <span class="text-xs text-gray-500">{Math.round(group.kcal)} ккал</span>
                   </div>
-                  <div class="shrink-0 text-right">
-                    <div class="font-semibold text-gray-900">{Math.round(m.kcal)} ккал</div>
-                    <div class="mt-1 flex items-center justify-end gap-3 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => openEditDraft(m)}
-                        class="font-medium text-brand-600 hover:text-brand-700"
-                      >
-                        Редагувати
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(m.id)}
-                        disabled={deletingId.value === m.id}
-                        class="text-red-500 hover:text-red-600 disabled:opacity-50"
-                      >
-                        {deletingId.value === m.id ? 'Видаляємо…' : 'Видалити'}
-                      </button>
-                    </div>
-                  </div>
-                </li>
+                  <ul class="divide-y divide-gray-100">{group.items.map(renderMeal)}</ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       </section>
