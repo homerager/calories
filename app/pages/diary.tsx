@@ -48,6 +48,12 @@ function shiftIso(iso: string, deltaDays: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+// Формат дати запису (YYYY-MM-DD → DD.MM.YYYY) для рядка мета.
+function formatDay(iso: string): string {
+  const d = new Date(`${iso}T12:00:00.000Z`)
+  return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 interface DraftForm {
   name: string
   portionGrams: number
@@ -580,7 +586,7 @@ export default defineComponent({
                       )}
                     </div>
                     <div class="mt-0.5 text-xs text-gray-500">
-                      {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
+                      {formatDay(m.date)} · {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
                       <span class="text-gray-400">{SOURCE_LABELS[m.source]}</span>
                     </div>
                   </div>

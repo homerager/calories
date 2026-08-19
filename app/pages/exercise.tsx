@@ -22,6 +22,11 @@ function timeLabel(iso: string): string {
   return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
 }
 
+function dateLabel(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 interface ExerciseForm {
   name: string
   durationMin: string
@@ -74,7 +79,7 @@ export default defineComponent({
     }
 
     function entryMeta(e: ExerciseItem): string {
-      const parts: string[] = [timeLabel(e.performedAt)]
+      const parts: string[] = [`${dateLabel(e.performedAt)}, ${timeLabel(e.performedAt)}`]
       if (e.durationMin != null) parts.push(`${e.durationMin} хв`)
       return parts.join(' · ')
     }
