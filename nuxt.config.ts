@@ -58,6 +58,16 @@ export default defineNuxtConfig({
         clientSecret: process.env.NUXT_OAUTH_GITHUB_CLIENT_SECRET,
       },
     },
+    // Web Push (VAPID) — доставка сповіщень у браузер.
+    push: {
+      vapidPublicKey: process.env.NUXT_PUSH_VAPID_PUBLIC_KEY,
+      vapidPrivateKey: process.env.NUXT_PUSH_VAPID_PRIVATE_KEY,
+      vapidSubject: process.env.NUXT_PUSH_VAPID_SUBJECT ?? 'mailto:admin@example.com',
+    },
+    // Планувальник нагадувань.
+    reminders: {
+      timezone: process.env.NUXT_REMINDERS_TIMEZONE ?? 'Europe/Kyiv',
+    },
     // AI-шар: сервісні (fallback) ключі, моделі, провайдер за замовчуванням, квота.
     ai: {
       openaiApiKey: process.env.NUXT_AI_OPENAI_API_KEY,
@@ -71,7 +81,9 @@ export default defineNuxtConfig({
       freeQuotaPeriodDays: process.env.NUXT_AI_FREE_QUOTA_PERIOD_DAYS,
     },
     // Public keys exposed to the client
-    public: {},
+    public: {
+      pushVapidPublicKey: process.env.NUXT_PUSH_VAPID_PUBLIC_KEY ?? '',
+    },
   },
 
   typescript: {

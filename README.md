@@ -69,8 +69,8 @@ pm2 save && pm2 startup               # автозапуск після ребу
 ```
 
 cd /var/www/calories
-npm run build
 npx prisma migrate deploy
+npm run build
 pm2 stop calories || true
 pm2 delete calories || true
 pm2 start npm --name calories -- run start
