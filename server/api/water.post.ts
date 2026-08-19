@@ -1,8 +1,8 @@
-import { waterCreateSchema, DEFAULT_WATER_GOAL_ML } from '../utils/waterSchemas'
+import { waterCreateSchema } from '../utils/waterSchemas'
 import { prisma } from '../utils/prisma'
 import { nextDay, startOfDay } from '../utils/aggregates'
 
-// Додає запис води (ручне введення) → WaterLog.
+// Додає запис випитої води (ручне введення) → WaterLog.
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event)
 
@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 400,
       statusMessage: 'Bad Request',
-      message: body.error.issues[0]?.message ?? 'Некоректні дані води',
+      message: body.error.issues[0]?.message ?? 'Некоректні дані запису води',
     })
   }
 
@@ -27,8 +27,17 @@ export default defineEventHandler(async (event) => {
   const measuredAt = data.date ? new Date(`${data.date}T12:00:00.000Z`) : new Date()
 
   const entry = await prisma.waterLog.create({
-    data: { userId: user.id, volumeMl: data.volumeMl, measuredAt },
-    select: { id: true, volumeMl: true, measuredAt: true, createdAt: true },
+    data: {
+      userId: user.id,
+      volumeMl: data.volumeMl,
+      measuredAt,
+    },
+    select: {
+      id: true,
+      volumeMl: true,
+      measuredAt: true,
+      createdAt: true,
+    },
   })
 
   const dayStart = startOfDay(measuredAt)
@@ -46,6 +55,5 @@ export default defineEventHandler(async (event) => {
       createdAt: entry.createdAt.toISOString(),
     },
     totalMl: sums._sum.volumeMl ?? 0,
-    goalMl: DEFAULT_WATER_GOAL_ML,
   }
 })

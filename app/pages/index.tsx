@@ -38,6 +38,12 @@ export default defineComponent({
     const kcalRemaining = computed(() =>
       kcalNorm.value != null ? Math.round(kcalNorm.value - totals.value.totalKcal) : null,
     )
+    // Залишок з урахуванням активності: спалені калорії «повертаються» в бюджет.
+    const kcalRemainingWithActivity = computed(() =>
+      kcalNorm.value != null
+        ? Math.round(kcalNorm.value - totals.value.totalKcal + totalKcalBurned.value)
+        : null,
+    )
 
     // Останні записи (найновіші згори).
     const recentMeals = computed(() => [...meals.value].reverse().slice(0, 5))
@@ -116,6 +122,19 @@ export default defineComponent({
             <span class="text-gray-500">
               Нетто (спожито − спалено): <strong class="text-gray-800">{netKcal.value} ккал</strong>
             </span>
+            {kcalRemainingWithActivity.value != null && (
+              <span class="text-gray-500">
+                {kcalRemainingWithActivity.value >= 0
+                  ? 'Залишок з активністю'
+                  : 'Перевищення з активністю'}
+                :{' '}
+                <strong
+                  class={kcalRemainingWithActivity.value >= 0 ? 'text-brand-700' : 'text-red-600'}
+                >
+                  {Math.abs(kcalRemainingWithActivity.value)} ккал
+                </strong>
+              </span>
+            )}
           </div>
 
           {kcalNorm.value == null && (

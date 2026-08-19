@@ -89,6 +89,7 @@ export default defineComponent({
       { to: '/diary', label: 'Щоденник' },
       { to: '/menu', label: 'Меню' },
       { to: '/exercise', label: 'Активність' },
+      //{ to: '/water', label: 'Вода' },
       { to: '/stats', label: 'Статистика' },
       { to: '/settings', label: 'Налаштування' },
     ]

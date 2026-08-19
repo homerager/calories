@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { todayIso } from './useDiary'
 
-// Клієнтський composable для журналу води: записи дня, сума випитого, ціль,
+// Клієнтський composable для журналу води: записи дня, сума випитого (мл),
 // додавання та видалення записів (ручне введення).
 
 export interface WaterItem {
@@ -11,18 +11,20 @@ export interface WaterItem {
   createdAt: string
 }
 
+/** Тіло для збереження запису (POST /api/water). */
+export interface WaterCreatePayload {
+  date?: string
+  volumeMl: number
+}
+
 interface WaterResponse {
   date: string
   entries: WaterItem[]
   totalMl: number
-  goalMl: number
 }
 
-/** Тіло для збереження запису (POST /api/water). */
-export interface WaterCreatePayload {
-  volumeMl: number
-  date?: string
-}
+/** Денна ціль по воді (мл) для індикаторів прогресу. */
+export const WATER_DAILY_GOAL_ML = 2000
 
 export function useWater() {
   const requestFetch = useRequestFetch()
@@ -30,21 +32,29 @@ export function useWater() {
 
   const { data, pending, refresh } = useAsyncData(
     'water',
-    () => requestFetch<WaterResponse>('/api/water', { query: { date: date.value } }),
+    () =>
+      requestFetch<WaterResponse>('/api/water', {
+        query: { date: date.value },
+      }),
     { watch: [date] },
   )
 
   const entries = computed<WaterItem[]>(() => data.value?.entries ?? [])
   const totalMl = computed<number>(() => data.value?.totalMl ?? 0)
-  const goalMl = computed<number>(() => data.value?.goalMl ?? 2000)
+  const goalMl = computed<number>(() => WATER_DAILY_GOAL_ML)
 
   /** Додає запис і оновлює список/суму. */
-  async function addWater(volumeMl: number, forDate?: string): Promise<void> {
+  async function saveWater(payload: WaterCreatePayload): Promise<void> {
     await $fetch('/api/water', {
       method: 'POST',
-      body: { volumeMl, date: forDate ?? date.value },
+      body: { ...payload, date: payload.date ?? date.value },
     })
     await refresh()
+  }
+
+  /** Швидке додавання обсягу (мл) для поточного дня. */
+  async function addWater(volumeMl: number): Promise<void> {
+    await saveWater({ volumeMl })
   }
 
   /** Видаляє запис і оновлює список/суму. */
@@ -59,6 +69,7 @@ export function useWater() {
     totalMl,
     goalMl,
     pending,
+    saveWater,
     addWater,
     deleteWater,
     refresh,
