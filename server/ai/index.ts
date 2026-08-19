@@ -1,5 +1,13 @@
 import type { AiProvider, AiRequestKind } from '../../prisma/generated/client/enums'
-import type { MenuGenerationInput, MenuGenerationResult, RecognitionResult } from './types'
+import type {
+  DishDetailsInput,
+  DishDetailsResult,
+  MenuDayGenerationInput,
+  MenuDayGenerationResult,
+  MenuGenerationInput,
+  MenuGenerationResult,
+  RecognitionResult,
+} from './types'
 import { createProvider } from './factory'
 import { consumeFreeQuota, resolveAiKey } from './keyResolver'
 import { logAiRequest } from './log'
@@ -111,6 +119,90 @@ export async function generateWeeklyMenu(options: GenerateMenuOptions): Promise<
   const provider = createProvider(resolved.provider, resolved.apiKey, { model })
 
   const result = await provider.generateMenu(options.input)
+
+  await logAiRequest({
+    userId: options.userId,
+    provider: resolved.provider,
+    model: result.model,
+    kind: 'MENU',
+    usage: result.usage,
+    cacheHit: false,
+  })
+
+  if (resolved.usingFallback) {
+    await consumeFreeQuota(options.userId)
+  }
+
+  return { ...result, provider: resolved.provider, usingFallback: resolved.usingFallback }
+}
+
+export interface GenerateMenuDayOptions {
+  userId: string
+  preferred?: AiProvider
+  model?: string
+  input: MenuDayGenerationInput
+}
+
+export interface GenerateMenuDayResponse extends MenuDayGenerationResult {
+  provider: AiProvider
+  usingFallback: boolean
+}
+
+/** Перегенерація одного дня меню: ключ → провайдер → виклик → лог → квота. */
+export async function generateMenuDay(
+  options: GenerateMenuDayOptions,
+): Promise<GenerateMenuDayResponse> {
+  const settings = await resolveUserAiSettings(options.userId)
+
+  const preferred = options.preferred ?? settings.preferredProvider ?? undefined
+  const resolved = await resolveAiKey(options.userId, preferred)
+
+  const model = options.model ?? settings.models[resolved.provider]
+  const provider = createProvider(resolved.provider, resolved.apiKey, { model })
+
+  const result = await provider.generateMenuDay(options.input)
+
+  await logAiRequest({
+    userId: options.userId,
+    provider: resolved.provider,
+    model: result.model,
+    kind: 'MENU',
+    usage: result.usage,
+    cacheHit: false,
+  })
+
+  if (resolved.usingFallback) {
+    await consumeFreeQuota(options.userId)
+  }
+
+  return { ...result, provider: resolved.provider, usingFallback: resolved.usingFallback }
+}
+
+export interface GenerateDishDetailsOptions {
+  userId: string
+  preferred?: AiProvider
+  model?: string
+  input: DishDetailsInput
+}
+
+export interface GenerateDishDetailsResponse extends DishDetailsResult {
+  provider: AiProvider
+  usingFallback: boolean
+}
+
+/** Генерація деталей страви (інгредієнти/кроки): ключ → провайдер → виклик → лог → квота. */
+export async function generateDishDetails(
+  options: GenerateDishDetailsOptions,
+): Promise<GenerateDishDetailsResponse> {
+  const settings = await resolveUserAiSettings(options.userId)
+
+  const preferred = options.preferred ?? settings.preferredProvider ?? undefined
+  const resolved = await resolveAiKey(options.userId, preferred)
+
+  const model = options.model ?? settings.models[resolved.provider]
+  const provider = createProvider(resolved.provider, resolved.apiKey, { model })
+
+  const result = await provider.generateDishDetails(options.input)
 
   await logAiRequest({
     userId: options.userId,

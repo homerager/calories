@@ -1,15 +1,39 @@
-import type { AIProvider, MenuGenerationInput, MenuGenerationResult, RecognitionResult, TokenUsage } from '../types'
+import type {
+  AIProvider,
+  DishDetailsInput,
+  DishDetailsResult,
+  MenuDayGenerationInput,
+  MenuDayGenerationResult,
+  MenuGenerationInput,
+  MenuGenerationResult,
+  RecognitionResult,
+  TokenUsage,
+} from '../types'
 import { EMPTY_USAGE } from '../types'
 import { IMAGE_PROMPT, SYSTEM_PROMPT, textPrompt } from '../prompt'
-import { MENU_GEMINI_SCHEMA, MENU_SYSTEM_PROMPT, menuUserPrompt } from '../menuPrompt'
+import {
+  DISH_DETAILS_GEMINI_SCHEMA,
+  DISH_DETAILS_SYSTEM_PROMPT,
+  MENU_DAY_GEMINI_SCHEMA,
+  MENU_DAY_SYSTEM_PROMPT,
+  MENU_GEMINI_SCHEMA,
+  MENU_SYSTEM_PROMPT,
+  dishDetailsUserPrompt,
+  menuDayUserPrompt,
+  menuUserPrompt,
+} from '../menuPrompt'
 import {
   AiProviderError,
+  buildDishDetailsResult,
+  buildMenuDayResult,
   buildMenuResult,
   buildResult,
   fetchWithRetry,
   normalizeMime,
   readJsonOrThrow,
+  validateDishDetails,
   validateMenu,
+  validateMenuDay,
   validateRecognition,
 } from './shared'
 
@@ -125,5 +149,55 @@ export class GeminiProvider implements AIProvider {
     }
     const data = validateMenu(text, PROVIDER)
     return buildMenuResult(data, this.model, mapUsage(json.usageMetadata))
+  }
+
+  async generateMenuDay(input: MenuDayGenerationInput): Promise<MenuDayGenerationResult> {
+    const url = `${BASE}/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`
+    const res = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: MENU_DAY_SYSTEM_PROMPT }] },
+        contents: [{ role: 'user', parts: [{ text: menuDayUserPrompt(input) }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: MENU_DAY_GEMINI_SCHEMA,
+          maxOutputTokens: 2048,
+        },
+      }),
+    })
+
+    const json = (await readJsonOrThrow(res, PROVIDER)) as GeminiResponse
+    const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('')
+    if (!text) {
+      throw new AiProviderError('Gemini: порожня відповідь', PROVIDER)
+    }
+    const data = validateMenuDay(text, PROVIDER)
+    return buildMenuDayResult(data, this.model, mapUsage(json.usageMetadata))
+  }
+
+  async generateDishDetails(input: DishDetailsInput): Promise<DishDetailsResult> {
+    const url = `${BASE}/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`
+    const res = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: DISH_DETAILS_SYSTEM_PROMPT }] },
+        contents: [{ role: 'user', parts: [{ text: dishDetailsUserPrompt(input) }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: DISH_DETAILS_GEMINI_SCHEMA,
+          maxOutputTokens: 2048,
+        },
+      }),
+    })
+
+    const json = (await readJsonOrThrow(res, PROVIDER)) as GeminiResponse
+    const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('')
+    if (!text) {
+      throw new AiProviderError('Gemini: порожня відповідь', PROVIDER)
+    }
+    const data = validateDishDetails(text, PROVIDER)
+    return buildDishDetailsResult(data, this.model, mapUsage(json.usageMetadata))
   }
 }

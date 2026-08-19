@@ -51,6 +51,25 @@ export interface ApplyResponse {
   }
 }
 
+export interface DishIngredient {
+  name: string
+  amount: string
+}
+
+export interface DishDetails {
+  ingredients: DishIngredient[]
+  steps: string[]
+  tips: string
+}
+
+export interface ItemDetailsResponse {
+  details: DishDetails
+  cacheHit: boolean
+  provider?: AiProvider
+  model?: string
+  usingFallback?: boolean
+}
+
 export function useMenu() {
   const requestFetch = useRequestFetch()
 
@@ -83,6 +102,20 @@ export function useMenu() {
     return res
   }
 
+  /** Перегенеровує один день плану й оновлює поточний план. */
+  async function regenerateDay(
+    planId: string,
+    dayIndex: number,
+    provider?: AiProvider,
+  ): Promise<GenerateResponse> {
+    const res = await $fetch<GenerateResponse>('/api/menu/regenerate-day', {
+      method: 'POST',
+      body: { planId, dayIndex, provider },
+    })
+    await refresh()
+    return res
+  }
+
   /** Додає всі страви дня у щоденник на відповідну дату. */
   function applyDay(planId: string, dayIndex: number, date: string): Promise<ApplyResponse> {
     return $fetch<ApplyResponse>('/api/menu/apply', {
@@ -99,5 +132,23 @@ export function useMenu() {
     })
   }
 
-  return { plan, norms, pending, refresh, generate, applyDay, applyItem }
+  /** Деталі страви (інгредієнти/кроки). Перший запит — AI, далі — кеш. */
+  function fetchItemDetails(itemId: string): Promise<ItemDetailsResponse> {
+    return $fetch<ItemDetailsResponse>('/api/menu/item-details', {
+      method: 'POST',
+      body: { itemId },
+    })
+  }
+
+  return {
+    plan,
+    norms,
+    pending,
+    refresh,
+    generate,
+    regenerateDay,
+    applyDay,
+    applyItem,
+    fetchItemDetails,
+  }
 }

@@ -1,6 +1,6 @@
 import { defineComponent, computed, ref } from 'vue'
-import { NuxtLink } from '#components'
-import { useMenu, type MenuItem, type MenuSlot } from '~/composables/useMenu'
+import { NuxtLink, DishName } from '#components'
+import { useMenu, type DishDetails, type MenuItem, type MenuSlot } from '~/composables/useMenu'
 
 const SLOT_LABELS: Record<MenuSlot, string> = {
   BREAKFAST: 'Сніданок',
@@ -49,13 +49,43 @@ export default defineComponent({
   setup() {
     definePageMeta({ middleware: 'auth' })
 
-    const { plan, norms, pending, generate, applyDay, applyItem } = useMenu()
+    const { plan, norms, pending, generate, regenerateDay, applyDay, applyItem, fetchItemDetails } =
+      useMenu()
 
     const generating = ref(false)
     const genError = ref<string | null>(null)
     // Ключ кнопки, яка зараз у процесі застосування (день або страва).
     const applyingKey = ref<string | null>(null)
     const applyMsg = ref<string | null>(null)
+    // dayIndex дня, що зараз перегенеровується (null — жоден).
+    const regeneratingDay = ref<number | null>(null)
+
+    // Модалка деталей страви.
+    const detailsItem = ref<MenuItem | null>(null)
+    const detailsData = ref<DishDetails | null>(null)
+    const detailsPending = ref(false)
+    const detailsError = ref<string | null>(null)
+
+    async function openDetails(meal: MenuItem) {
+      detailsItem.value = meal
+      detailsData.value = null
+      detailsError.value = null
+      detailsPending.value = true
+      try {
+        const res = await fetchItemDetails(meal.id)
+        detailsData.value = res.details
+      } catch (err: unknown) {
+        detailsError.value = extractErrorMessage(err) ?? 'Не вдалося завантажити деталі'
+      } finally {
+        detailsPending.value = false
+      }
+    }
+
+    function closeDetails() {
+      detailsItem.value = null
+      detailsData.value = null
+      detailsError.value = null
+    }
 
     const days = computed<DayGroup[]>(() => {
       const p = plan.value
@@ -94,6 +124,21 @@ export default defineComponent({
         genError.value = extractErrorMessage(err) ?? 'Не вдалося згенерувати меню'
       } finally {
         generating.value = false
+      }
+    }
+
+    async function onRegenerateDay(dayIndex: number) {
+      const p = plan.value
+      if (!p) return
+      regeneratingDay.value = dayIndex
+      genError.value = null
+      applyMsg.value = null
+      try {
+        await regenerateDay(p.id, dayIndex)
+      } catch (err: unknown) {
+        genError.value = extractErrorMessage(err) ?? 'Не вдалося перегенерувати день'
+      } finally {
+        regeneratingDay.value = null
       }
     }
 
@@ -191,14 +236,14 @@ export default defineComponent({
                   key={day.dayIndex}
                   class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100"
                 >
-                  <div class="flex items-baseline justify-between">
+                  <div class="flex items-baseline justify-between gap-2">
                     <h2 class="text-lg font-semibold text-gray-900">
                       {DAY_LABELS[day.dayIndex] ?? `День ${day.dayIndex + 1}`}
                       <span class="ml-2 text-sm font-normal text-gray-400">
                         {formatDay(day.date)}
                       </span>
                     </h2>
-                    <span class="text-sm text-gray-500">
+                    <span class="shrink-0 text-sm text-gray-500">
                       <strong class={over ? 'text-red-600' : 'text-gray-800'}>
                         {Math.round(day.totalKcal)}
                       </strong>
@@ -206,9 +251,19 @@ export default defineComponent({
                     </span>
                   </div>
 
-                  <div class="mt-1 text-xs text-gray-400">
-                    Б {roundMacro(day.totalProtein)} · Ж {roundMacro(day.totalFat)} · В{' '}
-                    {roundMacro(day.totalCarb)}
+                  <div class="mt-1 flex items-center justify-between gap-2">
+                    <span class="text-xs text-gray-400">
+                      Б {roundMacro(day.totalProtein)} · Ж {roundMacro(day.totalFat)} · В{' '}
+                      {roundMacro(day.totalCarb)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRegenerateDay(day.dayIndex)}
+                      disabled={regeneratingDay.value !== null}
+                      class="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
+                    >
+                      {regeneratingDay.value === day.dayIndex ? 'Оновлюємо…' : '↻ Перегенерувати день'}
+                    </button>
                   </div>
 
                   <ul class="mt-3 divide-y divide-gray-100">
@@ -216,10 +271,20 @@ export default defineComponent({
                       <li key={meal.id} class="flex items-center gap-3 py-2.5">
                         <div class="min-w-0 flex-1">
                           <div class="flex items-center gap-2">
-                            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
+                            <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
                               {SLOT_LABELS[meal.slot]}
                             </span>
-                            <span class="truncate font-medium text-gray-900">{meal.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => openDetails(meal)}
+                              class="min-w-0 flex-1 text-left"
+                              title="Показати деталі та інгредієнти"
+                            >
+                              <DishName
+                                text={meal.name}
+                                spanClass="font-medium text-gray-900 hover:text-brand-700"
+                              />
+                            </button>
                           </div>
                           <div class="mt-0.5 text-xs text-gray-500">
                             {Math.round(meal.portionGrams)} г · {Math.round(meal.kcal)} ккал · Б{' '}
@@ -254,6 +319,86 @@ export default defineComponent({
             })}
           </div>
         )}
+
+        {detailsItem.value ? (
+          <div
+            class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+            onClick={closeDetails}
+          >
+            <div
+              class="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+              onClick={(e: MouseEvent) => e.stopPropagation()}
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <h3 class="text-lg font-semibold text-gray-900">{detailsItem.value.name}</h3>
+                  <p class="mt-0.5 text-xs text-gray-500">
+                    {SLOT_LABELS[detailsItem.value.slot]} · {Math.round(detailsItem.value.portionGrams)}{' '}
+                    г · {Math.round(detailsItem.value.kcal)} ккал · Б {roundMacro(detailsItem.value.protein)}{' '}
+                    · Ж {roundMacro(detailsItem.value.fat)} · В {roundMacro(detailsItem.value.carb)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDetails}
+                  class="shrink-0 rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                  aria-label="Закрити"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div class="mt-4">
+                {detailsPending.value ? (
+                  <p class="text-sm text-gray-400">Готуємо деталі…</p>
+                ) : detailsError.value ? (
+                  <div class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
+                    <p>{detailsError.value}</p>
+                    <NuxtLink
+                      to="/settings/ai-keys"
+                      class="mt-1 inline-block font-medium text-red-800 underline"
+                    >
+                      Перейти до налаштувань AI
+                    </NuxtLink>
+                  </div>
+                ) : detailsData.value ? (
+                  <div class="space-y-4">
+                    <div>
+                      <h4 class="text-sm font-semibold text-gray-800">Інгредієнти</h4>
+                      <ul class="mt-2 space-y-1">
+                        {detailsData.value.ingredients.map((ing, i) => (
+                          <li key={i} class="flex justify-between gap-3 text-sm text-gray-700">
+                            <span>{ing.name}</span>
+                            {ing.amount ? (
+                              <span class="shrink-0 text-gray-400">{ing.amount}</span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {detailsData.value.steps.length > 0 ? (
+                      <div>
+                        <h4 class="text-sm font-semibold text-gray-800">Приготування</h4>
+                        <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                          {detailsData.value.steps.map((s, i) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    ) : null}
+
+                    {detailsData.value.tips ? (
+                      <div class="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800">
+                        {detailsData.value.tips}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
     )
   },

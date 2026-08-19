@@ -12,6 +12,16 @@ export interface UserDish {
   lastPortionGrams: number
 }
 
+/** Випадкова вибірка n елементів (Fisher-Yates), без мутації вхідного масиву. */
+export function pickRandom<T>(arr: T[], n: number): T[] {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j]!, copy[i]!]
+  }
+  return copy.slice(0, n)
+}
+
 /** Повертає найчастіші/найсвіжіші страви користувача (до `take` позицій). */
 export async function getUserDishes(userId: string, take = 30): Promise<UserDish[]> {
   const grouped = await prisma.mealEntry.groupBy({

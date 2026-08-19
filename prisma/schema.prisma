@@ -322,6 +322,8 @@ model MenuItem {
   fat          Float
   carb         Float
   foodItemId   String? // привʼязка до довідника, якщо страва знайома
+  // Кеш AI-деталей страви (інгредієнти/кроки/поради). Генерується за запитом.
+  detailsJson  Json?
 
   plan     MenuPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
   foodItem FoodItem? @relation(fields: [foodItemId], references: [id], onDelete: SetNull)

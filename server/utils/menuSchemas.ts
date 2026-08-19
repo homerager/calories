@@ -30,3 +30,20 @@ export const menuApplySchema = z
   })
 
 export type MenuApplyInput = z.infer<typeof menuApplySchema>
+
+/** Перегенерація одного дня наявного плану. */
+export const menuRegenerateDaySchema = z.object({
+  planId: z.string().min(1, 'Не вказано план'),
+  dayIndex: z.number().int().min(0).max(6),
+  provider: menuAiProviderSchema.optional(),
+})
+
+export type MenuRegenerateDayInput = z.infer<typeof menuRegenerateDaySchema>
+
+/** Запит деталей страви меню. */
+export const menuItemDetailsSchema = z.object({
+  itemId: z.string().min(1, 'Не вказано страву'),
+  provider: menuAiProviderSchema.optional(),
+})
+
+export type MenuItemDetailsInput = z.infer<typeof menuItemDetailsSchema>

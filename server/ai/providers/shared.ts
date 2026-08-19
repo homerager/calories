@@ -1,7 +1,13 @@
 import {
+  dishDetailsSchema,
   foodRecognitionSchema,
+  menuDayResultSchema,
   menuPlanSchema,
+  type DishDetails,
+  type DishDetailsResult,
   type FoodRecognition,
+  type MenuDayData,
+  type MenuDayGenerationResult,
   type MenuGenerationResult,
   type MenuPlanData,
   type RecognitionResult,
@@ -274,6 +280,50 @@ export function validateMenu(raw: unknown, provider: string): MenuPlanData {
 
 /** Збирає фінальний MenuGenerationResult. */
 export function buildMenuResult(data: MenuPlanData, model: string, usage: TokenUsage): MenuGenerationResult {
+  return { data, model, usage }
+}
+
+/** Валідує вхід схемою одного дня меню. Кидає AiProviderError за невідповідності. */
+export function validateMenuDay(raw: unknown, provider: string): MenuDayData {
+  const value = typeof raw === 'string' ? coerceJson(raw) : raw
+  const parsed = menuDayResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new AiProviderError(
+      `${provider}: день меню не відповідає схемі — ${parsed.error.issues[0]?.message ?? 'invalid'}`,
+      provider,
+    )
+  }
+  return parsed.data
+}
+
+/** Збирає фінальний MenuDayGenerationResult. */
+export function buildMenuDayResult(
+  data: MenuDayData,
+  model: string,
+  usage: TokenUsage,
+): MenuDayGenerationResult {
+  return { data, model, usage }
+}
+
+/** Валідує вхід схемою деталей страви. Кидає AiProviderError за невідповідності. */
+export function validateDishDetails(raw: unknown, provider: string): DishDetails {
+  const value = typeof raw === 'string' ? coerceJson(raw) : raw
+  const parsed = dishDetailsSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new AiProviderError(
+      `${provider}: деталі страви не відповідають схемі — ${parsed.error.issues[0]?.message ?? 'invalid'}`,
+      provider,
+    )
+  }
+  return parsed.data
+}
+
+/** Збирає фінальний DishDetailsResult. */
+export function buildDishDetailsResult(
+  data: DishDetails,
+  model: string,
+  usage: TokenUsage,
+): DishDetailsResult {
   return { data, model, usage }
 }
 

@@ -1,20 +1,42 @@
-import type { AIProvider, MenuGenerationInput, MenuGenerationResult, RecognitionResult, TokenUsage } from '../types'
+import type {
+  AIProvider,
+  DishDetailsInput,
+  DishDetailsResult,
+  MenuDayGenerationInput,
+  MenuDayGenerationResult,
+  MenuGenerationInput,
+  MenuGenerationResult,
+  RecognitionResult,
+  TokenUsage,
+} from '../types'
 import { EMPTY_USAGE } from '../types'
 import { FOOD_JSON_SCHEMA, IMAGE_PROMPT, SCHEMA_NAME, SYSTEM_PROMPT, textPrompt } from '../prompt'
 import {
+  DISH_DETAILS_JSON_SCHEMA,
+  DISH_DETAILS_SCHEMA_NAME,
+  DISH_DETAILS_SYSTEM_PROMPT,
+  MENU_DAY_JSON_SCHEMA,
+  MENU_DAY_SCHEMA_NAME,
+  MENU_DAY_SYSTEM_PROMPT,
   MENU_JSON_SCHEMA,
   MENU_SCHEMA_NAME,
   MENU_SYSTEM_PROMPT,
+  dishDetailsUserPrompt,
+  menuDayUserPrompt,
   menuUserPrompt,
 } from '../menuPrompt'
 import {
   AiProviderError,
+  buildDishDetailsResult,
+  buildMenuDayResult,
   buildMenuResult,
   buildResult,
   fetchWithRetry,
   normalizeMime,
   readJsonOrThrow,
+  validateDishDetails,
   validateMenu,
+  validateMenuDay,
   validateRecognition,
 } from './shared'
 
@@ -123,5 +145,63 @@ export class OpenAIProvider implements AIProvider {
     }
     const data = validateMenu(content, PROVIDER)
     return buildMenuResult(data, this.model, mapUsage(json.usage))
+  }
+
+  async generateMenuDay(input: MenuDayGenerationInput): Promise<MenuDayGenerationResult> {
+    const res = await fetchWithRetry(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          { role: 'system', content: MENU_DAY_SYSTEM_PROMPT },
+          { role: 'user', content: menuDayUserPrompt(input) },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: MENU_DAY_SCHEMA_NAME, schema: MENU_DAY_JSON_SCHEMA, strict: true },
+        },
+      }),
+    })
+
+    const json = (await readJsonOrThrow(res, PROVIDER)) as OpenAIResponse
+    const content = json.choices?.[0]?.message?.content
+    if (!content) {
+      throw new AiProviderError('OpenAI: порожня відповідь', PROVIDER)
+    }
+    const data = validateMenuDay(content, PROVIDER)
+    return buildMenuDayResult(data, this.model, mapUsage(json.usage))
+  }
+
+  async generateDishDetails(input: DishDetailsInput): Promise<DishDetailsResult> {
+    const res = await fetchWithRetry(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          { role: 'system', content: DISH_DETAILS_SYSTEM_PROMPT },
+          { role: 'user', content: dishDetailsUserPrompt(input) },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: DISH_DETAILS_SCHEMA_NAME, schema: DISH_DETAILS_JSON_SCHEMA, strict: true },
+        },
+      }),
+    })
+
+    const json = (await readJsonOrThrow(res, PROVIDER)) as OpenAIResponse
+    const content = json.choices?.[0]?.message?.content
+    if (!content) {
+      throw new AiProviderError('OpenAI: порожня відповідь', PROVIDER)
+    }
+    const data = validateDishDetails(content, PROVIDER)
+    return buildDishDetailsResult(data, this.model, mapUsage(json.usage))
   }
 }

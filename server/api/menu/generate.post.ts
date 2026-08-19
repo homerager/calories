@@ -1,7 +1,7 @@
 import { prisma } from '../../utils/prisma'
 import { normalizeFoodKey } from '../../utils/crypto'
 import { startOfDay } from '../../utils/aggregates'
-import { getUserDishes } from '../../utils/myDishes'
+import { getUserDishes, pickRandom } from '../../utils/myDishes'
 import { menuGenerateSchema } from '../../utils/menuSchemas'
 import { toMenuPlanResponse } from '../../utils/menuResponse'
 import { AiProviderError, generateWeeklyMenu, statusForAiError } from '../../ai'
@@ -66,7 +66,9 @@ export default defineEventHandler(async (event) => {
           carbGrams: profile?.carbGrams ?? null,
           goal: profile ? GOAL_LABELS[profile.goal] : null,
         },
-        candidates: candidates.map((c) => ({ name: c.name, per100: c.per100 })),
+        // Невелика ВИПАДКОВА вибірка знайомих страв (замість усього топ-списку) —
+        // щоб меню не зациклювалось на одних і тих самих стравах і різнилось між генераціями.
+        candidates: pickRandom(candidates, 8).map((c) => ({ name: c.name, per100: c.per100 })),
       },
     })
 
