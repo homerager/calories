@@ -52,7 +52,20 @@ export default defineComponent({
   setup() {
     definePageMeta({ middleware: 'auth' })
 
-    const { range, days, totals, averages, norms, loggedDays, totalDays, pending } = useStats()
+    const {
+      range,
+      days,
+      totals,
+      averages,
+      norms,
+      loggedDays,
+      totalDays,
+      activeDays,
+      burnedTotal,
+      burnedAvg,
+      netTotal,
+      pending,
+    } = useStats()
 
     const isDay = computed(() => range.value === 'day')
 
@@ -103,6 +116,20 @@ export default defineComponent({
             </div>
           </div>
 
+          {/* Спалено / нетто-баланс */}
+          <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-gray-100 pt-4 text-sm">
+            <span class="text-gray-500">
+              Спалено{isDay.value ? '' : ' (сер./день)'}:{' '}
+              <strong class="text-emerald-600">
+                −{Math.round(isDay.value ? burnedTotal.value : burnedAvg.value)} ккал
+              </strong>
+            </span>
+            <span class="text-gray-500">
+              Нетто{isDay.value ? '' : ' за період'} (спожито − спалено):{' '}
+              <strong class="text-gray-800">{Math.round(isDay.value ? totals.value.kcal - burnedTotal.value : netTotal.value)} ккал</strong>
+            </span>
+          </div>
+
           {norms.value.dailyKcal == null && (
             <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
               Заповніть профіль, щоб бачити цільові норми.
@@ -131,13 +158,21 @@ export default defineComponent({
           <h2 class="text-lg font-semibold text-gray-900">Підсумок періоду</h2>
           <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {statCard('Спожито всього', `${Math.round(totals.value.kcal)}`, 'ккал')}
+            {statCard('Спалено всього', `${Math.round(burnedTotal.value)}`, 'ккал')}
+            {statCard('Нетто', `${Math.round(netTotal.value)}`, 'спожито − спалено')}
             {statCard(
-              'Середнє/день',
+              'Спожито (сер./день)',
               `${Math.round(averages.value.kcal)}`,
               loggedDays.value > 0 ? `по ${loggedDays.value} дн.` : 'немає записів',
             )}
+            {statCard(
+              'Спалено (сер./день)',
+              `${Math.round(burnedAvg.value)}`,
+              activeDays.value > 0 ? `по ${activeDays.value} дн.` : 'немає активності',
+            )}
             {statCard('Білки (сер.)', `${Math.round(averages.value.protein)}`, 'г/день')}
             {statCard('Днів із записами', `${loggedDays.value}`, `з ${totalDays.value}`)}
+            {statCard('Днів з активністю', `${activeDays.value}`, `з ${totalDays.value}`)}
           </div>
         </div>
       </section>

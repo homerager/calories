@@ -33,6 +33,7 @@ interface DayPoint {
   protein: number
   fat: number
   carb: number
+  burned: number
 }
 
 interface Macros {
@@ -54,7 +55,7 @@ export default defineEventHandler(async (event) => {
   fromStart.setDate(fromStart.getDate() - (totalDays - 1))
   const rangeEnd = nextDay(todayStart)
 
-  const [aggregates, profile] = await Promise.all([
+  const [aggregates, profile, exerciseLogs] = await Promise.all([
     prisma.dailyAggregate.findMany({
       where: { userId: user.id, date: { gte: fromStart, lt: rangeEnd } },
       orderBy: { date: 'asc' },
@@ -70,11 +71,22 @@ export default defineEventHandler(async (event) => {
       where: { userId: user.id },
       select: { dailyKcal: true, proteinGrams: true, fatGrams: true, carbGrams: true },
     }),
+    prisma.exerciseLog.findMany({
+      where: { userId: user.id, performedAt: { gte: fromStart, lt: rangeEnd } },
+      select: { performedAt: true, kcalBurned: true },
+    }),
   ])
 
   // Мапа за ключем доби для швидкого заповнення нулями.
   const byDate = new Map<string, (typeof aggregates)[number]>()
   for (const agg of aggregates) byDate.set(dateKey(agg.date), agg)
+
+  // Спалені калорії групуємо по добі (performedAt — timestamp, тому бакетимо у JS).
+  const burnedByDate = new Map<string, number>()
+  for (const log of exerciseLogs) {
+    const key = dateKey(log.performedAt)
+    burnedByDate.set(key, (burnedByDate.get(key) ?? 0) + (log.kcalBurned ?? 0))
+  }
 
   const days: DayPoint[] = []
   const cursor = new Date(fromStart)
@@ -87,19 +99,29 @@ export default defineEventHandler(async (event) => {
       protein: agg?.totalProtein ?? 0,
       fat: agg?.totalFat ?? 0,
       carb: agg?.totalCarb ?? 0,
+      burned: burnedByDate.get(key) ?? 0,
     })
     cursor.setDate(cursor.getDate() + 1)
   }
 
   const totals: Macros = { kcal: 0, protein: 0, fat: 0, carb: 0 }
   let loggedDays = 0
+  let burnedTotal = 0
+  let activeDays = 0 // дні зі спаленими калоріями
   for (const d of days) {
     totals.kcal += d.kcal
     totals.protein += d.protein
     totals.fat += d.fat
     totals.carb += d.carb
+    burnedTotal += d.burned
     if (d.kcal > 0 || d.protein > 0 || d.fat > 0 || d.carb > 0) loggedDays++
+    if (d.burned > 0) activeDays++
   }
+
+  // Нетто = спожито − спалено (за весь період).
+  const netTotal = totals.kcal - burnedTotal
+  // Середнє спалених — по днях з активністю, щоб дні відпочинку не занижували показник.
+  const burnedAvg = activeDays ? burnedTotal / activeDays : 0
 
   // Середні рахуємо по днях із записами, щоб дні без логування не занижували показник.
   const divisor = loggedDays || 1
@@ -116,6 +138,10 @@ export default defineEventHandler(async (event) => {
     to: dateKey(todayStart),
     totalDays,
     loggedDays,
+    activeDays,
+    burnedTotal,
+    burnedAvg,
+    netTotal,
     norms: {
       dailyKcal: profile?.dailyKcal ?? null,
       proteinGrams: profile?.proteinGrams ?? null,

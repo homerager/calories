@@ -11,6 +11,7 @@ export interface StatsDay {
   protein: number
   fat: number
   carb: number
+  burned: number
 }
 
 export interface StatsMacros {
@@ -33,6 +34,10 @@ export interface StatsResponse {
   to: string
   totalDays: number
   loggedDays: number
+  activeDays: number
+  burnedTotal: number
+  burnedAvg: number
+  netTotal: number
   norms: StatsNorms
   days: StatsDay[]
   totals: StatsMacros
@@ -63,6 +68,10 @@ export function useStats() {
   const norms = computed<StatsNorms>(() => data.value?.norms ?? EMPTY_NORMS)
   const loggedDays = computed(() => data.value?.loggedDays ?? 0)
   const totalDays = computed(() => data.value?.totalDays ?? 0)
+  const activeDays = computed(() => data.value?.activeDays ?? 0)
+  const burnedTotal = computed(() => data.value?.burnedTotal ?? 0)
+  const burnedAvg = computed(() => data.value?.burnedAvg ?? 0)
+  const netTotal = computed(() => data.value?.netTotal ?? 0)
 
   return {
     range,
@@ -72,6 +81,10 @@ export function useStats() {
     norms,
     loggedDays,
     totalDays,
+    activeDays,
+    burnedTotal,
+    burnedAvg,
+    netTotal,
     pending,
     refresh,
   }
