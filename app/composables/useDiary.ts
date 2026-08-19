@@ -88,6 +88,16 @@ export interface Norms {
   carbGrams: number | null
 }
 
+/** Страва з особистої бази (вже була у прийомах їжі). */
+export interface MyDish {
+  foodItemId: string
+  name: string
+  per100: { kcal: number; protein: number; fat: number; carb: number }
+  timesUsed: number
+  lastUsedAt: string | null
+  lastPortionGrams: number
+}
+
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -170,6 +180,11 @@ export function useDiary() {
     await refreshMeals()
   }
 
+  /** Особиста база страв, що вже були у прийомах їжі. */
+  function fetchMyDishes(): Promise<{ items: MyDish[] }> {
+    return $fetch<{ items: MyDish[] }>('/api/food-items/my')
+  }
+
   return {
     date,
     meals,
@@ -182,5 +197,6 @@ export function useDiary() {
     updateMeal,
     deleteMeal,
     refreshMeals,
+    fetchMyDishes,
   }
 }

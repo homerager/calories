@@ -7,6 +7,7 @@ import {
   type MealItem,
   type MealSlot,
   type MealSource,
+  type MyDish,
   type RecognizeDraft,
 } from '~/composables/useDiary'
 
@@ -54,6 +55,12 @@ function formatDay(iso: string): string {
   return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+// Час створення запису (HH:mm) із повного ISO-таймстемпа createdAt.
+function formatTime(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+}
+
 interface DraftForm {
   name: string
   portionGrams: number
@@ -84,9 +91,58 @@ export default defineComponent({
       saveMeal,
       updateMeal,
       deleteMeal,
+      fetchMyDishes,
     } = useDiary()
 
-    const tab = ref<'text' | 'photo'>('text')
+    const tab = ref<'text' | 'photo' | 'mine'>('text')
+
+    // Особиста база страв (лениво завантажується при першому відкритті вкладки).
+    const myDishes = ref<MyDish[]>([])
+    const dishesPending = ref(false)
+    const dishesLoaded = ref(false)
+    const dishesError = ref<string | null>(null)
+
+    async function loadMyDishes() {
+      if (dishesLoaded.value || dishesPending.value) return
+      dishesPending.value = true
+      dishesError.value = null
+      try {
+        const res = await fetchMyDishes()
+        myDishes.value = res.items
+        dishesLoaded.value = true
+      } catch (err: unknown) {
+        dishesError.value = extractErrorMessage(err) ?? 'Не вдалося завантажити страви'
+      } finally {
+        dishesPending.value = false
+      }
+    }
+
+    function selectTab(next: 'text' | 'photo' | 'mine') {
+      tab.value = next
+      if (next === 'mine') void loadMyDishes()
+    }
+
+    // Префіл чернетки з готової страви (per100 відомі → масштабуємо на порцію).
+    function openDishDraft(d: MyDish) {
+      const portion = d.lastPortionGrams > 0 ? d.lastPortionGrams : 100
+      const k = portion / 100
+      fillDraft(
+        {
+          name: d.name,
+          portionGrams: portion,
+          kcal: roundKcal(d.per100.kcal * k),
+          protein: roundMacro(d.per100.protein * k),
+          fat: roundMacro(d.per100.fat * k),
+          carb: roundMacro(d.per100.carb * k),
+          confidence: 1,
+          per100: { ...d.per100 },
+          foodItemId: d.foodItemId,
+          suggestedSource: 'MANUAL',
+        },
+        null,
+      )
+      nextTick(() => editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    }
     const textInput = ref('')
     const recognizing = ref(false)
     const recognizeError = ref<string | null>(null)
@@ -388,20 +444,27 @@ export default defineComponent({
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Додати їжу</h2>
 
-          <div class="mt-4 flex gap-2">
+          <div class="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => (tab.value = 'text')}
+              onClick={() => selectTab('text')}
               class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'text' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
             >
               Текст
             </button>
             <button
               type="button"
-              onClick={() => (tab.value = 'photo')}
+              onClick={() => selectTab('photo')}
               class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'photo' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
             >
               Фото
+            </button>
+            <button
+              type="button"
+              onClick={() => selectTab('mine')}
+              class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'mine' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              Мої страви
             </button>
             <button
               type="button"
@@ -412,7 +475,43 @@ export default defineComponent({
             </button>
           </div>
 
-          {tab.value === 'text' ? (
+          {tab.value === 'mine' ? (
+            <div class="mt-4">
+              {dishesPending.value ? (
+                <p class="text-sm text-gray-400">Завантаження…</p>
+              ) : dishesError.value ? (
+                <p class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
+                  {dishesError.value}
+                </p>
+              ) : myDishes.value.length === 0 ? (
+                <p class="rounded-lg bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
+                  Тут зʼявляться страви, які ви вже додавали. Додайте кілька записів через текст, фото чи вручну.
+                </p>
+              ) : (
+                <ul class="divide-y divide-gray-100">
+                  {myDishes.value.map((d) => (
+                    <li key={d.foodItemId} class="flex items-center gap-3 py-2.5">
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate font-medium text-gray-900">{d.name}</div>
+                        <div class="mt-0.5 text-xs text-gray-500">
+                          {Math.round(d.per100.kcal)} ккал/100 г · Б {roundMacro(d.per100.protein)} · Ж{' '}
+                          {roundMacro(d.per100.fat)} · В {roundMacro(d.per100.carb)} ·{' '}
+                          <span class="text-gray-400">{d.timesUsed}×</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openDishDraft(d)}
+                        class="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700"
+                      >
+                        Додати
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : tab.value === 'text' ? (
             <div class="mt-4 flex flex-wrap items-end gap-3">
               <div class="min-w-0 flex-1">
                 <label class={labelClass} for="foodText">Опис страви</label>
@@ -586,7 +685,7 @@ export default defineComponent({
                       )}
                     </div>
                     <div class="mt-0.5 text-xs text-gray-500">
-                      {formatDay(m.date)} · {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
+                      {formatDay(m.date)}, {formatTime(m.createdAt)} · {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
                       <span class="text-gray-400">{SOURCE_LABELS[m.source]}</span>
                     </div>
                   </div>

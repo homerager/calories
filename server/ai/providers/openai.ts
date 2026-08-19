@@ -1,12 +1,20 @@
-import type { AIProvider, RecognitionResult, TokenUsage } from '../types'
+import type { AIProvider, MenuGenerationInput, MenuGenerationResult, RecognitionResult, TokenUsage } from '../types'
 import { EMPTY_USAGE } from '../types'
 import { FOOD_JSON_SCHEMA, IMAGE_PROMPT, SCHEMA_NAME, SYSTEM_PROMPT, textPrompt } from '../prompt'
 import {
+  MENU_JSON_SCHEMA,
+  MENU_SCHEMA_NAME,
+  MENU_SYSTEM_PROMPT,
+  menuUserPrompt,
+} from '../menuPrompt'
+import {
   AiProviderError,
+  buildMenuResult,
   buildResult,
   fetchWithRetry,
   normalizeMime,
   readJsonOrThrow,
+  validateMenu,
   validateRecognition,
 } from './shared'
 
@@ -86,5 +94,34 @@ export class OpenAIProvider implements AIProvider {
       { type: 'text', text: IMAGE_PROMPT },
       { type: 'image_url', image_url: { url } },
     ])
+  }
+
+  async generateMenu(input: MenuGenerationInput): Promise<MenuGenerationResult> {
+    const res = await fetchWithRetry(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          { role: 'system', content: MENU_SYSTEM_PROMPT },
+          { role: 'user', content: menuUserPrompt(input) },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: MENU_SCHEMA_NAME, schema: MENU_JSON_SCHEMA, strict: true },
+        },
+      }),
+    })
+
+    const json = (await readJsonOrThrow(res, PROVIDER)) as OpenAIResponse
+    const content = json.choices?.[0]?.message?.content
+    if (!content) {
+      throw new AiProviderError('OpenAI: порожня відповідь', PROVIDER)
+    }
+    const data = validateMenu(content, PROVIDER)
+    return buildMenuResult(data, this.model, mapUsage(json.usage))
   }
 }

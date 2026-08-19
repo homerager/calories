@@ -10,6 +10,7 @@ export interface ExerciseItem {
   durationMin: number | null
   kcalBurned: number | null
   performedAt: string
+  createdAt: string
 }
 
 /** Тіло для збереження запису (POST /api/exercises). */

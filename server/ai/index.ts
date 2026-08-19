@@ -1,5 +1,5 @@
 import type { AiProvider, AiRequestKind } from '../../prisma/generated/client/enums'
-import type { RecognitionResult } from './types'
+import type { MenuGenerationInput, MenuGenerationResult, RecognitionResult } from './types'
 import { createProvider } from './factory'
 import { consumeFreeQuota, resolveAiKey } from './keyResolver'
 import { logAiRequest } from './log'
@@ -75,6 +75,52 @@ async function runRecognition(
   })
 
   // Списуємо безкоштовну квоту лише за успішного fallback-виклику.
+  if (resolved.usingFallback) {
+    await consumeFreeQuota(options.userId)
+  }
+
+  return { ...result, provider: resolved.provider, usingFallback: resolved.usingFallback }
+}
+
+// ── Генерація меню на тиждень ────────────────────────────────────────────
+
+export interface GenerateMenuOptions {
+  userId: string
+  /** Явне перевизначення провайдера (інакше — налаштування → env). */
+  preferred?: AiProvider
+  /** Явне перевизначення моделі (інакше — модель провайдера з налаштувань). */
+  model?: string
+  /** Норми та знайомі страви користувача. */
+  input: MenuGenerationInput
+}
+
+export interface GenerateMenuResponse extends MenuGenerationResult {
+  provider: AiProvider
+  /** true → використано сервісний (fallback) ключ. */
+  usingFallback: boolean
+}
+
+/** Генерація меню на тиждень: ключ → провайдер → виклик → лог → квота. */
+export async function generateWeeklyMenu(options: GenerateMenuOptions): Promise<GenerateMenuResponse> {
+  const settings = await resolveUserAiSettings(options.userId)
+
+  const preferred = options.preferred ?? settings.preferredProvider ?? undefined
+  const resolved = await resolveAiKey(options.userId, preferred)
+
+  const model = options.model ?? settings.models[resolved.provider]
+  const provider = createProvider(resolved.provider, resolved.apiKey, { model })
+
+  const result = await provider.generateMenu(options.input)
+
+  await logAiRequest({
+    userId: options.userId,
+    provider: resolved.provider,
+    model: result.model,
+    kind: 'MENU',
+    usage: result.usage,
+    cacheHit: false,
+  })
+
   if (resolved.usingFallback) {
     await consumeFreeQuota(options.userId)
   }

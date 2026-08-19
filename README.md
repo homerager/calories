@@ -74,7 +74,6 @@ npx prisma migrate deploy
 pm2 stop calories || true
 pm2 delete calories || true
 pm2 start npm --name calories -- run start
-pm2 start ecosystem.config.cjs --update-env || pm2 start .output/server/index.mjs --name calories -- --port 3001
 pm2 save
 
 git pull

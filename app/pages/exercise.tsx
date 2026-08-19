@@ -79,7 +79,8 @@ export default defineComponent({
     }
 
     function entryMeta(e: ExerciseItem): string {
-      const parts: string[] = [`${dateLabel(e.performedAt)}, ${timeLabel(e.performedAt)}`]
+      // Дата — з обраного дня (performedAt), реальний час — з моменту створення (createdAt).
+      const parts: string[] = [`${dateLabel(e.performedAt)}, ${timeLabel(e.createdAt)}`]
       if (e.durationMin != null) parts.push(`${e.durationMin} хв`)
       return parts.join(' · ')
     }

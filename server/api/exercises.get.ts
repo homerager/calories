@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
       durationMin: true,
       kcalBurned: true,
       performedAt: true,
+      createdAt: true,
     },
   })
 
@@ -36,6 +37,7 @@ export default defineEventHandler(async (event) => {
       durationMin: e.durationMin,
       kcalBurned: e.kcalBurned,
       performedAt: e.performedAt.toISOString(),
+      createdAt: e.createdAt.toISOString(),
     })),
     totalKcalBurned,
   }

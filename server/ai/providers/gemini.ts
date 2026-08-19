@@ -1,12 +1,15 @@
-import type { AIProvider, RecognitionResult, TokenUsage } from '../types'
+import type { AIProvider, MenuGenerationInput, MenuGenerationResult, RecognitionResult, TokenUsage } from '../types'
 import { EMPTY_USAGE } from '../types'
 import { IMAGE_PROMPT, SYSTEM_PROMPT, textPrompt } from '../prompt'
+import { MENU_GEMINI_SCHEMA, MENU_SYSTEM_PROMPT, menuUserPrompt } from '../menuPrompt'
 import {
   AiProviderError,
+  buildMenuResult,
   buildResult,
   fetchWithRetry,
   normalizeMime,
   readJsonOrThrow,
+  validateMenu,
   validateRecognition,
 } from './shared'
 
@@ -97,5 +100,30 @@ export class GeminiProvider implements AIProvider {
       { text: IMAGE_PROMPT },
       { inlineData: { mimeType: normalizeMime(mimeType), data: imageBase64 } },
     ])
+  }
+
+  async generateMenu(input: MenuGenerationInput): Promise<MenuGenerationResult> {
+    const url = `${BASE}/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`
+    const res = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: MENU_SYSTEM_PROMPT }] },
+        contents: [{ role: 'user', parts: [{ text: menuUserPrompt(input) }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: MENU_GEMINI_SCHEMA,
+          maxOutputTokens: 8192,
+        },
+      }),
+    })
+
+    const json = (await readJsonOrThrow(res, PROVIDER)) as GeminiResponse
+    const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('')
+    if (!text) {
+      throw new AiProviderError('Gemini: порожня відповідь', PROVIDER)
+    }
+    const data = validateMenu(text, PROVIDER)
+    return buildMenuResult(data, this.model, mapUsage(json.usageMetadata))
   }
 }

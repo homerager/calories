@@ -59,6 +59,7 @@ enum AiProvider {
 enum AiRequestKind {
   TEXT
   IMAGE
+  MENU
 }
 
 // Прийом їжі (для майбутнього групування записів по слотах)
@@ -94,6 +95,7 @@ model User {
   waterLogs      WaterLog[]
   exerciseLogs   ExerciseLog[]
   reminders      Reminder[]
+  menuPlans      MenuPlan[]
 
   @@index([email])
 }
@@ -174,6 +176,7 @@ model FoodItem {
   updatedAt DateTime @updatedAt
 
   mealEntries MealEntry[]
+  menuItems   MenuItem[]
 
   @@index([name])
 }
@@ -288,6 +291,43 @@ model FreeQuota {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Меню на тиждень: збережений план + позиції по днях/слотах.
+// ─────────────────────────────────────────────────────────────
+
+model MenuPlan {
+  id        String   @id @default(cuid())
+  userId    String
+  startDate DateTime // початок тижня (нормалізований до дати)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items MenuItem[]
+
+  @@index([userId, createdAt])
+}
+
+model MenuItem {
+  id           String   @id @default(cuid())
+  planId       String
+  dayIndex     Int // 0..6 (Пн..Нд від startDate)
+  slot         MealSlot
+  name         String
+  portionGrams Float
+  kcal         Float
+  protein      Float
+  fat          Float
+  carb         Float
+  foodItemId   String? // привʼязка до довідника, якщо страва знайома
+
+  plan     MenuPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  foodItem FoodItem? @relation(fields: [foodItemId], references: [id], onDelete: SetNull)
+
+  @@index([planId, dayIndex])
+  @@index([foodItemId])
 }
 
 // ─────────────────────────────────────────────────────────────

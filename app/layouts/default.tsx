@@ -63,6 +63,7 @@ export default defineComponent({
 
     const navLinks = [
       { to: '/diary', label: 'Щоденник' },
+      { to: '/menu', label: 'Меню' },
       { to: '/exercise', label: 'Активність' },
       { to: '/stats', label: 'Статистика' },
       { to: '/profile', label: 'Профіль' },

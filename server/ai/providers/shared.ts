@@ -1,4 +1,12 @@
-import { foodRecognitionSchema, type FoodRecognition, type RecognitionResult, type TokenUsage } from '../types'
+import {
+  foodRecognitionSchema,
+  menuPlanSchema,
+  type FoodRecognition,
+  type MenuGenerationResult,
+  type MenuPlanData,
+  type RecognitionResult,
+  type TokenUsage,
+} from '../types'
 
 // Спільні хелпери для провайдерів: обробка HTTP-помилок, класифікація помилок,
 // парсинг та валідація JSON-відповіді єдиною zod-схемою.
@@ -245,6 +253,27 @@ export function validateRecognition(raw: unknown, provider: string): FoodRecogni
 
 /** Збирає фінальний RecognitionResult. */
 export function buildResult(data: FoodRecognition, model: string, usage: TokenUsage): RecognitionResult {
+  return { data, model, usage }
+}
+
+/**
+ * Валідує довільний вхід (обʼєкт або рядок-JSON) схемою меню на тиждень.
+ * Кидає AiProviderError, якщо структура не відповідає контракту.
+ */
+export function validateMenu(raw: unknown, provider: string): MenuPlanData {
+  const value = typeof raw === 'string' ? coerceJson(raw) : raw
+  const parsed = menuPlanSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new AiProviderError(
+      `${provider}: меню не відповідає схемі — ${parsed.error.issues[0]?.message ?? 'invalid'}`,
+      provider,
+    )
+  }
+  return parsed.data
+}
+
+/** Збирає фінальний MenuGenerationResult. */
+export function buildMenuResult(data: MenuPlanData, model: string, usage: TokenUsage): MenuGenerationResult {
   return { data, model, usage }
 }
 
