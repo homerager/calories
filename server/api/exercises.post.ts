@@ -1,6 +1,8 @@
 import { exerciseCreateSchema } from '../utils/exerciseSchemas'
 import { prisma } from '../utils/prisma'
 import { nextDay, startOfDay } from '../utils/aggregates'
+import { decrypt } from '../utils/crypto'
+import { kcalFromSteps } from '../utils/steps'
 
 // Додає запис активності (ручне введення) → ExerciseLog.
 export default defineEventHandler(async (event) => {
@@ -26,18 +28,27 @@ export default defineEventHandler(async (event) => {
   // Дату фіксуємо на полудень UTC, щоб нормалізація до доби була стабільною.
   const performedAt = data.date ? new Date(`${data.date}T12:00:00.000Z`) : new Date()
 
+  const steps = data.steps ?? null
+  // Якщо калорії не вказані вручну, але є кроки — оцінюємо витрати за вагою профілю.
+  let kcalBurned = data.kcalBurned ?? null
+  if (kcalBurned == null && steps != null) {
+    kcalBurned = kcalFromSteps(steps, await getUserWeightKg(user.id))
+  }
+
   const entry = await prisma.exerciseLog.create({
     data: {
       userId: user.id,
       name: data.name,
       durationMin: data.durationMin ?? null,
-      kcalBurned: data.kcalBurned ?? null,
+      steps,
+      kcalBurned,
       performedAt,
     },
     select: {
       id: true,
       name: true,
       durationMin: true,
+      steps: true,
       kcalBurned: true,
       performedAt: true,
       createdAt: true,
@@ -56,6 +67,7 @@ export default defineEventHandler(async (event) => {
       id: entry.id,
       name: entry.name,
       durationMin: entry.durationMin,
+      steps: entry.steps,
       kcalBurned: entry.kcalBurned,
       performedAt: entry.performedAt.toISOString(),
       createdAt: entry.createdAt.toISOString(),
@@ -63,3 +75,18 @@ export default defineEventHandler(async (event) => {
     totalKcalBurned: sums._sum.kcalBurned ?? 0,
   }
 })
+
+/** Розшифровує вагу користувача з профілю; повертає null за відсутності/помилки. */
+async function getUserWeightKg(userId: string): Promise<number | null> {
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    select: { weightEnc: true },
+  })
+  if (!profile?.weightEnc) return null
+  try {
+    const value = Number(decrypt(profile.weightEnc))
+    return Number.isFinite(value) && value > 0 ? value : null
+  } catch {
+    return null
+  }
+}

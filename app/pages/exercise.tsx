@@ -1,6 +1,18 @@
-import { defineComponent, reactive, ref } from 'vue'
+import { computed, defineComponent, reactive, ref } from 'vue'
 import { useExercise, type ExerciseItem } from '~/composables/useExercise'
+import { useProfile } from '~/composables/useProfile'
 import { todayIso } from '~/composables/useDiary'
+
+// Оцінка калорій за кроками (дзеркало server/utils/steps.ts):
+// ~0.04 ккал/крок для 70 кг, лінійно від ваги. За відсутності ваги — 70 кг.
+const DEFAULT_WEIGHT_KG = 70
+const KCAL_PER_STEP_PER_KG = 0.04 / DEFAULT_WEIGHT_KG
+
+function kcalFromSteps(steps: number, weightKg?: number | null): number {
+  if (!Number.isFinite(steps) || steps <= 0) return 0
+  const weight = weightKg && weightKg > 0 ? weightKg : DEFAULT_WEIGHT_KG
+  return Math.round(steps * weight * KCAL_PER_STEP_PER_KG)
+}
 
 const inputClass =
   'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
@@ -30,6 +42,7 @@ function dateLabel(iso: string): string {
 interface ExerciseForm {
   name: string
   durationMin: string
+  steps: string
   kcalBurned: string
 }
 
@@ -39,11 +52,19 @@ export default defineComponent({
     definePageMeta({ middleware: 'auth' })
 
     const { date, entries, totalKcalBurned, pending, saveExercise, deleteExercise } = useExercise()
+    const { profile } = useProfile()
 
-    const form = reactive<ExerciseForm>({ name: '', durationMin: '', kcalBurned: '' })
+    const form = reactive<ExerciseForm>({ name: '', durationMin: '', steps: '', kcalBurned: '' })
     const saving = ref(false)
     const saveError = ref<string | null>(null)
     const deletingId = ref<string | null>(null)
+
+    // Оцінка калорій за введеними кроками (для підказки у формі).
+    const stepsKcalEstimate = computed<number | null>(() => {
+      const steps = parseIntOrNull(form.steps)
+      if (steps == null) return null
+      return kcalFromSteps(steps, profile.value?.weightKg)
+    })
 
     async function onSave() {
       const name = form.name.trim()
@@ -57,10 +78,12 @@ export default defineComponent({
         await saveExercise({
           name,
           durationMin: parseIntOrNull(form.durationMin),
+          steps: parseIntOrNull(form.steps),
           kcalBurned: parseIntOrNull(form.kcalBurned),
         })
         form.name = ''
         form.durationMin = ''
+        form.steps = ''
         form.kcalBurned = ''
       } catch (err: unknown) {
         saveError.value = extractErrorMessage(err) ?? 'Не вдалося зберегти запис'
@@ -82,6 +105,7 @@ export default defineComponent({
       // Дата — з обраного дня (performedAt), реальний час — з моменту створення (createdAt).
       const parts: string[] = [`${dateLabel(e.performedAt)}, ${timeLabel(e.createdAt)}`]
       if (e.durationMin != null) parts.push(`${e.durationMin} хв`)
+      if (e.steps != null) parts.push(`${e.steps.toLocaleString('uk-UA')} кроків`)
       return parts.join(' · ')
     }
 
@@ -134,7 +158,8 @@ export default defineComponent({
             </span>
           </div>
           <p class="mt-2 text-xs text-gray-500">
-            Дані вводяться вручну. Пізніше сюди можна буде імпортувати активність із Mi Fitness/Zepp.
+            Дані вводяться вручну. Для ходьби можна вказати кроки — калорії порахуються автоматично за вагою профілю.
+            Пізніше сюди можна буде імпортувати активність із Mi Fitness/Zepp.
           </p>
         </div>
 
@@ -171,6 +196,20 @@ export default defineComponent({
             </div>
 
             <div>
+              <label class={labelClass} for="ex-steps">Кроки</label>
+              <input
+                id="ex-steps"
+                type="number"
+                min={1}
+                step="1"
+                value={form.steps}
+                onInput={(e) => (form.steps = (e.target as HTMLInputElement).value)}
+                class={inputClass}
+                placeholder="напр. 8000"
+              />
+            </div>
+
+            <div>
               <label class={labelClass} for="ex-kcal">Спалено, ккал</label>
               <input
                 id="ex-kcal"
@@ -180,8 +219,16 @@ export default defineComponent({
                 value={form.kcalBurned}
                 onInput={(e) => (form.kcalBurned = (e.target as HTMLInputElement).value)}
                 class={inputClass}
-                placeholder="напр. 250"
+                placeholder={
+                  stepsKcalEstimate.value != null ? `≈ ${stepsKcalEstimate.value} (з кроків)` : 'напр. 250'
+                }
               />
+              {stepsKcalEstimate.value != null && parseIntOrNull(form.kcalBurned) == null && (
+                <p class="mt-1 text-xs text-gray-500">
+                  Порахуємо автоматично з кроків: ≈ {stepsKcalEstimate.value} ккал
+                  {profile.value?.weightKg == null && ' (за вагою 70 кг — вкажіть свою у профілі для точності)'}
+                </p>
+              )}
             </div>
           </div>
 

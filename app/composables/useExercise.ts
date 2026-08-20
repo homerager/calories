@@ -8,6 +8,7 @@ export interface ExerciseItem {
   id: string
   name: string
   durationMin: number | null
+  steps: number | null
   kcalBurned: number | null
   performedAt: string
   createdAt: string
@@ -18,6 +19,7 @@ export interface ExerciseCreatePayload {
   date?: string
   name: string
   durationMin?: number | null
+  steps?: number | null
   kcalBurned?: number | null
 }
 

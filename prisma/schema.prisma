@@ -357,6 +357,7 @@ model ExerciseLog {
   userId        String
   name          String
   durationMin   Int?
+  steps         Int?
   kcalBurned    Int?
   performedAt   DateTime @default(now())
   createdAt     DateTime @default(now())
