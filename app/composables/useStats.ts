@@ -26,6 +26,14 @@ export interface StatsNorms {
   proteinGrams: number | null
   fatGrams: number | null
   carbGrams: number | null
+  tdee: number | null
+}
+
+export interface WeightEstimate {
+  kcalBalance: number
+  weightChangeKg: number
+  basisDays: number
+  tdee: number
 }
 
 export interface StatsResponse {
@@ -39,6 +47,7 @@ export interface StatsResponse {
   burnedAvg: number
   netTotal: number
   norms: StatsNorms
+  weightEstimate: WeightEstimate | null
   days: StatsDay[]
   totals: StatsMacros
   averages: StatsMacros
@@ -50,6 +59,7 @@ const EMPTY_NORMS: StatsNorms = {
   proteinGrams: null,
   fatGrams: null,
   carbGrams: null,
+  tdee: null,
 }
 
 export function useStats() {
@@ -72,6 +82,7 @@ export function useStats() {
   const burnedTotal = computed(() => data.value?.burnedTotal ?? 0)
   const burnedAvg = computed(() => data.value?.burnedAvg ?? 0)
   const netTotal = computed(() => data.value?.netTotal ?? 0)
+  const weightEstimate = computed<WeightEstimate | null>(() => data.value?.weightEstimate ?? null)
 
   return {
     range,
@@ -85,6 +96,7 @@ export function useStats() {
     burnedTotal,
     burnedAvg,
     netTotal,
+    weightEstimate,
     pending,
     refresh,
   }

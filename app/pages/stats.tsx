@@ -37,6 +37,14 @@ function progressBar(
   )
 }
 
+// Форматує орієнтовну зміну ваги: знак + кг (втрата зі знаком «−», набір «+»).
+function formatWeightChange(kg: number): string {
+  const rounded = Math.round(kg * 10) / 10
+  if (rounded === 0) return '≈ 0 кг'
+  const sign = rounded < 0 ? '−' : '+'
+  return `${sign}${Math.abs(rounded).toFixed(1)} кг`
+}
+
 function statCard(label: string, value: string, sub?: string) {
   return (
     <div class="rounded-xl bg-gray-50 p-4">
@@ -64,6 +72,7 @@ export default defineComponent({
       burnedTotal,
       burnedAvg,
       netTotal,
+      weightEstimate,
       pending,
     } = useStats()
 
@@ -130,6 +139,26 @@ export default defineComponent({
             </span>
           </div>
 
+          {/* Орієнтовна зміна ваги за період (з енергетичного балансу) */}
+          {weightEstimate.value != null && (
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl bg-gray-50 px-4 py-3">
+              <div>
+                <div class="text-sm font-medium text-gray-700">Орієнтовна зміна ваги</div>
+                <div class="mt-0.5 text-xs text-gray-400">
+                  за {weightEstimate.value.basisDays} дн. із записами · підтримка ≈{' '}
+                  {weightEstimate.value.tdee} ккал/день
+                </div>
+              </div>
+              <span
+                class={`text-2xl font-bold ${
+                  weightEstimate.value.weightChangeKg < 0 ? 'text-emerald-600' : 'text-amber-600'
+                }`}
+              >
+                {formatWeightChange(weightEstimate.value.weightChangeKg)}
+              </span>
+            </div>
+          )}
+
           {norms.value.dailyKcal == null && (
             <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
               Заповніть профіль, щоб бачити цільові норми.
@@ -160,6 +189,12 @@ export default defineComponent({
             {statCard('Спожито всього', `${Math.round(totals.value.kcal)}`, 'ккал')}
             {statCard('Спалено всього', `${Math.round(burnedTotal.value)}`, 'ккал')}
             {statCard('Нетто', `${Math.round(netTotal.value)}`, 'спожито − спалено')}
+            {weightEstimate.value != null &&
+              statCard(
+                'Орієнт. зміна ваги',
+                formatWeightChange(weightEstimate.value.weightChangeKg),
+                `за ${weightEstimate.value.basisDays} дн. із записами`,
+              )}
             {statCard(
               'Спожито (сер./день)',
               `${Math.round(averages.value.kcal)}`,

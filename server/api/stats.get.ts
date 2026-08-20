@@ -1,6 +1,10 @@
 import { getQuery } from 'h3'
 import { prisma } from '../utils/prisma'
 import { startOfDay, nextDay } from '../utils/aggregates'
+import { GOAL_ADJUSTMENTS } from '../utils/mifflin'
+
+// Енергетичний еквівалент 1 кг маси тіла (≈7700 ккал) для оцінки зміни ваги.
+const KCAL_PER_KG = 7700
 
 // Статистика споживання за період (день / тиждень / місяць) із DailyAggregate.
 // Повертає добові точки (із нулями для днів без записів), суми, середні
@@ -69,7 +73,7 @@ export default defineEventHandler(async (event) => {
     }),
     prisma.profile.findUnique({
       where: { userId: user.id },
-      select: { dailyKcal: true, proteinGrams: true, fatGrams: true, carbGrams: true },
+      select: { dailyKcal: true, proteinGrams: true, fatGrams: true, carbGrams: true, goal: true },
     }),
     prisma.exerciseLog.findMany({
       where: { userId: user.id, performedAt: { gte: fromStart, lt: rangeEnd } },
@@ -132,6 +136,32 @@ export default defineEventHandler(async (event) => {
     carb: loggedDays ? totals.carb / divisor : 0,
   }
 
+  // Відновлюємо TDEE (підтримку) зі збереженої цільової норми та цілі:
+  // dailyKcal = TDEE * (1 + корекція за ціллю) → TDEE = dailyKcal / (1 + корекція).
+  const goalAdj = profile ? GOAL_ADJUSTMENTS[profile.goal] : 0
+  const tdee =
+    profile?.dailyKcal != null ? Math.round(profile.dailyKcal / (1 + goalAdj)) : null
+
+  // Орієнтовна зміна ваги: рахуємо тільки по днях із записами (unlogged дні не
+  // вважаємо «нульовим» споживанням, щоб не завищувати дефіцит).
+  // Баланс = спожито − спалено (активність) − підтримка(TDEE)×дні з записами.
+  let weightEstimate: {
+    kcalBalance: number
+    weightChangeKg: number
+    basisDays: number
+    tdee: number
+  } | null = null
+  if (tdee != null && loggedDays > 0) {
+    const maintenance = tdee * loggedDays
+    const kcalBalance = totals.kcal - burnedTotal - maintenance
+    weightEstimate = {
+      kcalBalance,
+      weightChangeKg: kcalBalance / KCAL_PER_KG,
+      basisDays: loggedDays,
+      tdee,
+    }
+  }
+
   return {
     range,
     from: dateKey(fromStart),
@@ -147,7 +177,9 @@ export default defineEventHandler(async (event) => {
       proteinGrams: profile?.proteinGrams ?? null,
       fatGrams: profile?.fatGrams ?? null,
       carbGrams: profile?.carbGrams ?? null,
+      tdee,
     },
+    weightEstimate,
     days,
     totals,
     averages,
