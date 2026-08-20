@@ -36,6 +36,14 @@ export interface WeightEstimate {
   tdee: number
 }
 
+export interface WeightActual {
+  startKg: number
+  endKg: number
+  changeKg: number
+  startAt: string
+  endAt: string
+}
+
 export interface StatsResponse {
   range: StatsRange
   from: string
@@ -48,6 +56,7 @@ export interface StatsResponse {
   netTotal: number
   norms: StatsNorms
   weightEstimate: WeightEstimate | null
+  weightActual: WeightActual | null
   days: StatsDay[]
   totals: StatsMacros
   averages: StatsMacros
@@ -83,6 +92,7 @@ export function useStats() {
   const burnedAvg = computed(() => data.value?.burnedAvg ?? 0)
   const netTotal = computed(() => data.value?.netTotal ?? 0)
   const weightEstimate = computed<WeightEstimate | null>(() => data.value?.weightEstimate ?? null)
+  const weightActual = computed<WeightActual | null>(() => data.value?.weightActual ?? null)
 
   return {
     range,
@@ -97,6 +107,7 @@ export function useStats() {
     burnedAvg,
     netTotal,
     weightEstimate,
+    weightActual,
     pending,
     refresh,
   }

@@ -40,6 +40,12 @@ export default defineNuxtConfig({
     databaseUrl: process.env.DATABASE_URL,
     session: {
       password: process.env.NUXT_SESSION_PASSWORD ?? '',
+      // Тривалість сесії у секундах. Обовʼязково задаємо явно, інакше cookie стає
+      // «session cookie» без Expires/Max-Age — і мобільний Safari (iOS) вивантажує
+      // його при згортанні застосунку/очищенні вкладок, через що користувача
+      // розлогінює вже за кілька хвилин. Явний maxAge робить cookie персистентним
+      // (і задає TTL запечатаної сесії). За замовчуванням — 30 днів.
+      maxAge: Number(process.env.NUXT_SESSION_MAX_AGE ?? 60 * 60 * 24 * 30),
       cookie: {
         sameSite: 'lax',
         // За замовчуванням Secure (потрібен HTTPS). На HTTP-сервері тимчасово

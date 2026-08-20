@@ -73,6 +73,7 @@ export default defineComponent({
       burnedAvg,
       netTotal,
       weightEstimate,
+      weightActual,
       pending,
     } = useStats()
 
@@ -139,23 +140,51 @@ export default defineComponent({
             </span>
           </div>
 
-          {/* Орієнтовна зміна ваги за період (з енергетичного балансу) */}
-          {weightEstimate.value != null && (
-            <div class="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl bg-gray-50 px-4 py-3">
-              <div>
-                <div class="text-sm font-medium text-gray-700">Орієнтовна зміна ваги</div>
-                <div class="mt-0.5 text-xs text-gray-400">
-                  за {weightEstimate.value.basisDays} дн. із записами · підтримка ≈{' '}
-                  {weightEstimate.value.tdee} ккал/день
+          {/* Зміна ваги: оцінка (енергобаланс) + факт (зважування) */}
+          {(weightEstimate.value != null || weightActual.value != null) && (
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {weightEstimate.value != null && (
+                <div class="rounded-xl bg-gray-50 px-4 py-3">
+                  <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-sm font-medium text-gray-700">Орієнтовна зміна ваги</span>
+                    <span
+                      class={`text-2xl font-bold ${
+                        weightEstimate.value.weightChangeKg < 0
+                          ? 'text-emerald-600'
+                          : 'text-amber-600'
+                      }`}
+                    >
+                      {formatWeightChange(weightEstimate.value.weightChangeKg)}
+                    </span>
+                  </div>
+                  <div class="mt-0.5 text-xs text-gray-400">
+                    з енергобалансу · за {weightEstimate.value.basisDays} дн. із записами ·
+                    підтримка ≈ {weightEstimate.value.tdee} ккал/день
+                  </div>
                 </div>
-              </div>
-              <span
-                class={`text-2xl font-bold ${
-                  weightEstimate.value.weightChangeKg < 0 ? 'text-emerald-600' : 'text-amber-600'
-                }`}
-              >
-                {formatWeightChange(weightEstimate.value.weightChangeKg)}
-              </span>
+              )}
+
+              {weightActual.value != null && (
+                <div class="rounded-xl bg-gray-50 px-4 py-3">
+                  <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-sm font-medium text-gray-700">Фактична зміна ваги</span>
+                    <span
+                      class={`text-2xl font-bold ${
+                        weightActual.value.changeKg < 0
+                          ? 'text-emerald-600'
+                          : weightActual.value.changeKg > 0
+                            ? 'text-amber-600'
+                            : 'text-gray-700'
+                      }`}
+                    >
+                      {formatWeightChange(weightActual.value.changeKg)}
+                    </span>
+                  </div>
+                  <div class="mt-0.5 text-xs text-gray-400">
+                    зі зважувань · {weightActual.value.startKg} → {weightActual.value.endKg} кг
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -194,6 +223,12 @@ export default defineComponent({
                 'Орієнт. зміна ваги',
                 formatWeightChange(weightEstimate.value.weightChangeKg),
                 `за ${weightEstimate.value.basisDays} дн. із записами`,
+              )}
+            {weightActual.value != null &&
+              statCard(
+                'Факт. зміна ваги',
+                formatWeightChange(weightActual.value.changeKg),
+                `${weightActual.value.startKg} → ${weightActual.value.endKg} кг`,
               )}
             {statCard(
               'Спожито (сер./день)',

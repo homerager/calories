@@ -2,6 +2,7 @@ import { getQuery } from 'h3'
 import { prisma } from '../utils/prisma'
 import { startOfDay, nextDay } from '../utils/aggregates'
 import { GOAL_ADJUSTMENTS } from '../utils/mifflin'
+import { decrypt } from '../utils/crypto'
 
 // Енергетичний еквівалент 1 кг маси тіла (≈7700 ккал) для оцінки зміни ваги.
 const KCAL_PER_KG = 7700
@@ -59,7 +60,7 @@ export default defineEventHandler(async (event) => {
   fromStart.setDate(fromStart.getDate() - (totalDays - 1))
   const rangeEnd = nextDay(todayStart)
 
-  const [aggregates, profile, exerciseLogs] = await Promise.all([
+  const [aggregates, profile, exerciseLogs, weightLogs] = await Promise.all([
     prisma.dailyAggregate.findMany({
       where: { userId: user.id, date: { gte: fromStart, lt: rangeEnd } },
       orderBy: { date: 'asc' },
@@ -78,6 +79,13 @@ export default defineEventHandler(async (event) => {
     prisma.exerciseLog.findMany({
       where: { userId: user.id, performedAt: { gte: fromStart, lt: rangeEnd } },
       select: { performedAt: true, kcalBurned: true },
+    }),
+    // Усі зважування до кінця періоду (за зростанням) — щоб мати і базову точку
+    // (останнє зважування до початку періоду), і зважування всередині періоду.
+    prisma.weightLog.findMany({
+      where: { userId: user.id, measuredAt: { lt: rangeEnd } },
+      orderBy: { measuredAt: 'asc' },
+      select: { weightEnc: true, measuredAt: true },
     }),
   ])
 
@@ -162,6 +170,49 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // Фактична зміна ваги за період із WeightLog (розшифровуємо at rest).
+  // Стартова точка: останнє зважування ДО початку періоду (вага «на вході»),
+  // або перше зважування всередині періоду, якщо попередніх немає.
+  // Кінцева точка: останнє зважування всередині періоду.
+  const decoded = weightLogs
+    .map((log) => {
+      let weightKg: number | null
+      try {
+        weightKg = Number(decrypt(log.weightEnc))
+      } catch {
+        weightKg = null
+      }
+      return weightKg != null && Number.isFinite(weightKg)
+        ? { weightKg, measuredAt: log.measuredAt }
+        : null
+    })
+    .filter((e): e is { weightKg: number; measuredAt: Date } => e !== null)
+
+  const before = decoded.filter((e) => e.measuredAt < fromStart)
+  const inPeriod = decoded.filter((e) => e.measuredAt >= fromStart)
+
+  let weightActual: {
+    startKg: number
+    endKg: number
+    changeKg: number
+    startAt: string
+    endAt: string
+  } | null = null
+  if (inPeriod.length > 0) {
+    const baseline = before.length > 0 ? before[before.length - 1]! : inPeriod[0]!
+    const end = inPeriod[inPeriod.length - 1]!
+    // Потрібні дві різні точки виміру, інакше зміну рахувати немає з чого.
+    if (baseline.measuredAt.getTime() !== end.measuredAt.getTime()) {
+      weightActual = {
+        startKg: baseline.weightKg,
+        endKg: end.weightKg,
+        changeKg: Math.round((end.weightKg - baseline.weightKg) * 10) / 10,
+        startAt: baseline.measuredAt.toISOString(),
+        endAt: end.measuredAt.toISOString(),
+      }
+    }
+  }
+
   return {
     range,
     from: dateKey(fromStart),
@@ -180,6 +231,7 @@ export default defineEventHandler(async (event) => {
       tdee,
     },
     weightEstimate,
+    weightActual,
     days,
     totals,
     averages,
