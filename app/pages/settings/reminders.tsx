@@ -1,4 +1,5 @@
 import { defineComponent, reactive, ref } from 'vue'
+import { EmptyState, ErrorBanner, LoadingState } from '#components'
 import {
   useReminders,
   REMINDER_KINDS,
@@ -8,10 +9,8 @@ import {
   type ReminderKind,
 } from '~/composables/useReminders'
 import { usePushSubscription } from '~/composables/usePushSubscription'
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
-const labelClass = 'block text-sm font-medium text-gray-700'
+import { useToast } from '~/composables/useToast'
+import { btnDangerClass, btnPrimaryClass, btnSecondaryClass, inputClass, labelClass } from '~/utils/ui'
 
 function formatDaysOfWeek(days: number[]): string {
   if (days.length === 0) return 'Щодня'
@@ -40,6 +39,7 @@ export default defineComponent({
 
     const { reminders, pending, addReminder, updateReminder, deleteReminder } = useReminders()
     const push = usePushSubscription()
+    const toast = useToast()
 
     const form = reactive<ReminderForm>(emptyForm())
     const editingId = ref<string | null>(null)
@@ -83,8 +83,10 @@ export default defineComponent({
         }
         if (editingId.value) {
           await updateReminder(editingId.value, payload)
+          toast.success('Нагадування оновлено')
         } else {
           await addReminder(payload)
+          toast.success('Нагадування додано')
         }
         cancelEdit()
       } catch (err: unknown) {
@@ -98,6 +100,8 @@ export default defineComponent({
       busyId.value = reminder.id
       try {
         await updateReminder(reminder.id, { enabled: !reminder.enabled })
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося оновити нагадування')
       } finally {
         busyId.value = null
       }
@@ -108,6 +112,9 @@ export default defineComponent({
       try {
         await deleteReminder(id)
         if (editingId.value === id) cancelEdit()
+        toast.success('Нагадування видалено')
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося видалити нагадування')
       } finally {
         busyId.value = null
       }
@@ -130,8 +137,8 @@ export default defineComponent({
           </p>
 
           {push.error.value && (
-            <div class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-              {push.error.value}
+            <div class="mt-4">
+              <ErrorBanner message={push.error.value} />
             </div>
           )}
 
@@ -145,7 +152,8 @@ export default defineComponent({
                   type="button"
                   onClick={() => (push.subscribed.value ? push.unsubscribe() : push.subscribe())}
                   disabled={push.busy.value}
-                  class="shrink-0 rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-busy={push.busy.value}
+                  class={btnPrimaryClass}
                 >
                   {push.busy.value ? 'Зачекайте…' : push.subscribed.value ? 'Вимкнути' : 'Увімкнути'}
                 </button>
@@ -163,8 +171,8 @@ export default defineComponent({
           </h2>
 
           {formError.value && (
-            <div class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-              {formError.value}
+            <div class="mt-4">
+              <ErrorBanner message={formError.value} />
             </div>
           )}
 
@@ -218,18 +226,19 @@ export default defineComponent({
           </div>
 
           <div class="mt-4">
-            <span class={labelClass}>Дні тижня</span>
-            <div class="mt-1 flex flex-wrap gap-2">
+            <span id="reminder-days-label" class={labelClass}>Дні тижня</span>
+            <div class="mt-1 flex flex-wrap gap-2" role="group" aria-labelledby="reminder-days-label">
               {WEEKDAY_LABELS.map((label, day) => (
                 <button
                   key={day}
                   type="button"
                   onClick={() => toggleDay(day)}
+                  aria-pressed={form.daysOfWeek.includes(day)}
                   class={
-                    'rounded-full px-3 py-1 text-sm font-medium transition ' +
+                    'rounded-full px-3 py-1 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-brand-300 ' +
                     (form.daysOfWeek.includes(day)
                       ? 'bg-brand-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200')
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
                   }
                 >
                   {label}
@@ -253,7 +262,8 @@ export default defineComponent({
             <button
               type="submit"
               disabled={saving.value}
-              class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-busy={saving.value}
+              class={btnPrimaryClass}
             >
               {saving.value ? 'Зберігаємо…' : editingId.value ? 'Зберегти зміни' : 'Додати нагадування'}
             </button>
@@ -261,7 +271,7 @@ export default defineComponent({
               <button
                 type="button"
                 onClick={cancelEdit}
-                class="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50"
+                class={btnSecondaryClass}
               >
                 Скасувати
               </button>
@@ -274,9 +284,9 @@ export default defineComponent({
           <h2 class="text-lg font-semibold text-gray-900">Ваші нагадування</h2>
 
           {pending.value ? (
-            <p class="mt-4 text-sm text-gray-500">Завантаження…</p>
+            <LoadingState />
           ) : reminders.value.length === 0 ? (
-            <p class="mt-4 text-sm text-gray-500">Ще немає жодного нагадування.</p>
+            <EmptyState message="Ще немає жодного нагадування." />
           ) : (
             <ul class="mt-4 space-y-3">
               {reminders.value.map((r) => (
@@ -305,14 +315,14 @@ export default defineComponent({
                       type="button"
                       onClick={() => onToggleEnabled(r)}
                       disabled={busyId.value === r.id}
-                      class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      class={btnSecondaryClass}
                     >
                       {r.enabled ? 'Вимкнути' : 'Увімкнути'}
                     </button>
                     <button
                       type="button"
                       onClick={() => startEdit(r)}
-                      class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                      class={`${btnSecondaryClass} px-3 py-1.5 text-sm`}
                     >
                       Редагувати
                     </button>
@@ -320,7 +330,7 @@ export default defineComponent({
                       type="button"
                       onClick={() => onDelete(r.id)}
                       disabled={busyId.value === r.id}
-                      class="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      class={btnDangerClass}
                     >
                       Видалити
                     </button>

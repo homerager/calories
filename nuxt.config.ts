@@ -8,7 +8,7 @@ export default defineNuxtConfig({
     port: 3001,
   },
 
-  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', 'nuxt-auth-utils'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', 'nuxt-auth-utils', '@vite-pwa/nuxt'],
 
   tailwindcss: {
     cssPath: '~/assets/css/tailwind.css',
@@ -30,7 +30,57 @@ export default defineNuxtConfig({
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'description', content: 'Веб-додаток для підрахунку калорій' },
+        { name: 'theme-color', content: '#2c6f2c' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+        { name: 'apple-mobile-web-app-title', content: 'Calories' },
       ],
+      link: [
+        { rel: 'icon', type: 'image/png', href: '/icons/favicon-32.png' },
+        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
+      ],
+    },
+  },
+
+  pwa: {
+    strategies: 'injectManifest',
+    // Nuxt 4 srcDir = app/, тож шлях відносно app/: ../service-worker/sw.ts
+    srcDir: '../service-worker',
+    filename: 'sw.ts',
+    registerType: 'autoUpdate',
+    manifest: {
+      name: 'Calories',
+      short_name: 'Calories',
+      description: 'Веб-додаток для підрахунку калорій',
+      lang: 'uk',
+      theme_color: '#2c6f2c',
+      background_color: '#f9fafb',
+      display: 'standalone',
+      start_url: '/',
+      scope: '/',
+      icons: [
+        { src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/icons/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+        {
+          src: '/icons/pwa-512x512-maskable.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
+    },
+    injectManifest: {
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
+    },
+    client: {
+      installPrompt: true,
+      periodicSyncForUpdates: 3600,
+    },
+    devOptions: {
+      enabled: true,
+      suppressWarnings: true,
+      type: 'module',
     },
   },
 

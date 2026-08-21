@@ -1,8 +1,8 @@
 import { ref, onMounted } from 'vue'
 import { urlBase64ToUint8Array } from '~/utils/push'
 
-// Клієнтський composable для Web Push: реєстрація Service Worker, стан дозволу,
-// підписка/відписка браузера на сповіщення.
+// Клієнтський composable для Web Push: стан дозволу, підписка/відписка.
+// Service Worker реєструє @vite-pwa/nuxt — тут лише чекаємо ready.
 
 export function usePushSubscription() {
   const supported = ref(false)
@@ -11,20 +11,28 @@ export function usePushSubscription() {
   const busy = ref(false)
   const error = ref<string | null>(null)
 
+  async function getRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+    if (!import.meta.client || !('serviceWorker' in navigator)) return undefined
+    const { $pwa } = useNuxtApp()
+    const fromPwa = $pwa?.getSWRegistration?.()
+    if (fromPwa) return fromPwa
+    return navigator.serviceWorker.ready
+  }
+
   onMounted(async () => {
     if (!import.meta.client) return
-    supported.value = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+    supported.value =
+      'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
     if (!supported.value) return
 
     permission.value = Notification.permission
 
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js')
-      const existing = await registration.pushManager.getSubscription()
-      subscribed.value = existing !== null
+      const registration = await getRegistration()
+      const existing = await registration?.pushManager.getSubscription()
+      subscribed.value = existing != null
     } catch {
-      // Реєстрація SW не вдалась (напр. HTTP без localhost) — лишаємо supported=true,
-      // subscribe() поверне зрозумілу помилку при спробі.
+      // SW ще не активовано (напр. HTTP без localhost) — subscribe() покаже помилку.
     }
   })
 
@@ -47,7 +55,12 @@ export function usePushSubscription() {
         return
       }
 
-      const registration = await navigator.serviceWorker.ready
+      const registration = await getRegistration()
+      if (!registration) {
+        error.value = 'Service Worker ще не готовий. Оновіть сторінку й спробуйте ще раз.'
+        return
+      }
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
@@ -72,8 +85,8 @@ export function usePushSubscription() {
     error.value = null
     busy.value = true
     try {
-      const registration = await navigator.serviceWorker.ready
-      const subscription = await registration.pushManager.getSubscription()
+      const registration = await getRegistration()
+      const subscription = await registration?.pushManager.getSubscription()
       if (subscription) {
         const endpoint = subscription.endpoint
         await subscription.unsubscribe()

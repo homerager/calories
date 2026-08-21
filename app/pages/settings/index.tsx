@@ -46,10 +46,10 @@ export default defineComponent({
             <NuxtLink
               key={card.to}
               to={card.to}
-              class="flex items-start gap-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100 transition hover:ring-brand-200"
+              class="flex items-start gap-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100 transition hover:ring-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-400"
             >
-              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d={card.icon} />
                 </svg>
               </span>

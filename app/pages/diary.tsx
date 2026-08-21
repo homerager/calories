@@ -1,5 +1,5 @@
 import { computed, defineComponent, nextTick, reactive, ref } from 'vue'
-import { NuxtLink } from '#components'
+import { EmptyState, ErrorBanner, LoadingState, NuxtLink } from '#components'
 import { compressImage } from '~/utils/image'
 import {
   useDiary,
@@ -10,10 +10,17 @@ import {
   type MyDish,
   type RecognizeDraft,
 } from '~/composables/useDiary'
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
-const labelClass = 'block text-sm font-medium text-gray-700'
+import { useToast } from '~/composables/useToast'
+import {
+  btnGhostClass,
+  btnPrimaryClass,
+  btnSecondaryClass,
+  btnTabActiveClass,
+  btnTabIdleClass,
+  inputClass,
+  inputClassCompact,
+  labelClass,
+} from '~/utils/ui'
 
 const SLOT_OPTIONS: { value: MealSlot; label: string }[] = [
   { value: 'BREAKFAST', label: 'Сніданок' },
@@ -97,6 +104,7 @@ export default defineComponent({
       deleteMeal,
       fetchMyDishes,
     } = useDiary()
+    const toast = useToast()
 
     // Групування записів дня за прийомом їжі (зі збереженням хронології всередині групи).
     const groupedMeals = computed(() => {
@@ -187,7 +195,6 @@ export default defineComponent({
     const draftVisible = ref(false)
     const draftMeta = ref<{ cacheHit: boolean; usingFallback: boolean } | null>(null)
     const saving = ref(false)
-    const saveError = ref<string | null>(null)
     // Коли задано — редагуємо наявний запис, а не створюємо новий.
     const editingId = ref<string | null>(null)
     const editorRef = ref<HTMLDivElement | null>(null)
@@ -207,7 +214,6 @@ export default defineComponent({
       draftMeta.value = meta
       editingId.value = null
       draftVisible.value = true
-      saveError.value = null
     }
 
     // Відкриває редактор для наявного запису (режим редагування).
@@ -235,7 +241,6 @@ export default defineComponent({
       draftMeta.value = null
       editingId.value = m.id
       draftVisible.value = true
-      saveError.value = null
       nextTick(() => editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
     }
 
@@ -314,15 +319,14 @@ export default defineComponent({
 
     async function onSaveDraft() {
       if (!draft.name.trim()) {
-        saveError.value = 'Вкажіть назву страви'
+        toast.error('Вкажіть назву страви')
         return
       }
       if (draft.portionGrams <= 0) {
-        saveError.value = 'Порція має бути більшою за 0'
+        toast.error('Порція має бути більшою за 0')
         return
       }
       saving.value = true
-      saveError.value = null
       try {
         const payload = {
           name: draft.name.trim(),
@@ -338,15 +342,19 @@ export default defineComponent({
         }
         if (editingId.value) {
           await updateMeal(editingId.value, payload)
+          toast.success('Запис оновлено')
         } else {
           await saveMeal(payload)
           textInput.value = ''
+          toast.success('Запис додано')
         }
         closeDraft()
       } catch (err: unknown) {
-        saveError.value = editingId.value
-          ? extractErrorMessage(err) ?? 'Не вдалося оновити запис'
-          : extractErrorMessage(err) ?? 'Не вдалося зберегти запис'
+        toast.error(
+          editingId.value
+            ? extractErrorMessage(err) ?? 'Не вдалося оновити запис'
+            : extractErrorMessage(err) ?? 'Не вдалося зберегти запис',
+        )
       } finally {
         saving.value = false
       }
@@ -357,6 +365,8 @@ export default defineComponent({
       deletingId.value = id
       try {
         await deleteMeal(id)
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося видалити запис')
       } finally {
         deletingId.value = null
       }
@@ -408,7 +418,7 @@ export default defineComponent({
       return (
         <li key={m.id} class="flex items-center gap-3 py-3">
           <div class="min-w-0 flex-1">
-            <span class="truncate font-medium text-gray-900">{m.name}</span>
+            <span class="block truncate font-medium text-gray-900">{m.name}</span>
             <div class="mt-0.5 text-xs text-gray-500">
               {formatDay(m.date)}, {formatTime(m.createdAt)} · {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
               <span class="text-gray-400">{SOURCE_LABELS[m.source]}</span>
@@ -428,7 +438,7 @@ export default defineComponent({
                 type="button"
                 onClick={() => onDelete(m.id)}
                 disabled={deletingId.value === m.id}
-                class="text-red-500 hover:text-red-600 disabled:opacity-50"
+                class="text-sm font-medium text-red-700 hover:text-red-800 disabled:opacity-50"
               >
                 {deletingId.value === m.id ? 'Видаляємо…' : 'Видалити'}
               </button>
@@ -447,7 +457,7 @@ export default defineComponent({
             <button
               type="button"
               onClick={() => (date.value = shiftIso(date.value, -1))}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              class={btnGhostClass}
               aria-label="Попередній день"
             >
               ←
@@ -457,13 +467,14 @@ export default defineComponent({
               max={todayIso()}
               value={date.value}
               onInput={(e) => (date.value = (e.target as HTMLInputElement).value || todayIso())}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+              aria-label="Дата"
+              class={inputClassCompact}
             />
             <button
               type="button"
               onClick={() => (date.value = shiftIso(date.value, 1))}
               disabled={date.value >= todayIso()}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              class={`${btnGhostClass} disabled:opacity-40`}
               aria-label="Наступний день"
             >
               →
@@ -471,7 +482,7 @@ export default defineComponent({
             <button
               type="button"
               onClick={() => (date.value = todayIso())}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              class={btnGhostClass}
             >
               Сьогодні
             </button>
@@ -504,28 +515,31 @@ export default defineComponent({
             <button
               type="button"
               onClick={() => selectTab('text')}
-              class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'text' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              aria-pressed={tab.value === 'text'}
+              class={tab.value === 'text' ? btnTabActiveClass : btnTabIdleClass}
             >
               Текст
             </button>
             <button
               type="button"
               onClick={() => selectTab('photo')}
-              class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'photo' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              aria-pressed={tab.value === 'photo'}
+              class={tab.value === 'photo' ? btnTabActiveClass : btnTabIdleClass}
             >
               Фото
             </button>
             <button
               type="button"
               onClick={() => selectTab('mine')}
-              class={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab.value === 'mine' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              aria-pressed={tab.value === 'mine'}
+              class={tab.value === 'mine' ? btnTabActiveClass : btnTabIdleClass}
             >
               Мої страви
             </button>
             <button
               type="button"
               onClick={openManualDraft}
-              class="ml-auto rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              class={`${btnSecondaryClass} ml-auto px-3 py-1.5 text-sm`}
             >
               Вручну
             </button>
@@ -534,15 +548,11 @@ export default defineComponent({
           {tab.value === 'mine' ? (
             <div class="mt-4">
               {dishesPending.value ? (
-                <p class="text-sm text-gray-400">Завантаження…</p>
+                <LoadingState />
               ) : dishesError.value ? (
-                <p class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-                  {dishesError.value}
-                </p>
+                <ErrorBanner message={dishesError.value} />
               ) : myDishes.value.length === 0 ? (
-                <p class="rounded-lg bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
-                  Тут зʼявляться страви, які ви вже додавали. Додайте кілька записів через текст, фото чи вручну.
-                </p>
+                <EmptyState message="Тут зʼявляться страви, які ви вже додавали. Додайте кілька записів через текст, фото чи вручну." />
               ) : (
                 <ul class="divide-y divide-gray-100">
                   {myDishes.value.map((d) => (
@@ -569,7 +579,7 @@ export default defineComponent({
             </div>
           ) : tab.value === 'text' ? (
             <div class="mt-4 flex flex-wrap items-end gap-3">
-              <div class="min-w-0 flex-1">
+              <div class="min-w-0 md:w-auto w-full md:flex-1">
                 <label class={labelClass} for="foodText">Опис страви</label>
                 <input
                   id="foodText"
@@ -585,7 +595,8 @@ export default defineComponent({
                 type="button"
                 onClick={onRecognizeText}
                 disabled={recognizing.value}
-                class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-busy={recognizing.value}
+                class={btnPrimaryClass}
               >
                 {recognizing.value ? 'Розпізнаємо…' : 'Розпізнати'}
               </button>
@@ -597,6 +608,7 @@ export default defineComponent({
                 type="file"
                 accept="image/*"
                 capture="environment"
+                aria-label="Фото страви"
                 onChange={onFileChange}
                 class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:font-medium file:text-white hover:file:bg-brand-700"
               />
@@ -607,11 +619,12 @@ export default defineComponent({
           )}
 
           {recognizeError.value && (
-            <div class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-              <p>{recognizeError.value}</p>
-              <NuxtLink to="/settings/ai-keys" class="mt-1 inline-block font-medium text-red-800 underline">
-                Перейти до налаштувань AI
-              </NuxtLink>
+            <div class="mt-3">
+              <ErrorBanner message={recognizeError.value}>
+                <NuxtLink to="/settings/ai-keys" class="mt-1 inline-block font-medium text-red-900 underline">
+                  Перейти до налаштувань AI
+                </NuxtLink>
+              </ErrorBanner>
             </div>
           )}
 
@@ -683,14 +696,13 @@ export default defineComponent({
                 {draftField('carb', 'Вуглеводи, г')}
               </div>
 
-              {saveError.value && <p class="mt-3 text-sm text-red-600">{saveError.value}</p>}
-
               <div class="mt-4 flex gap-2">
                 <button
                   type="button"
                   onClick={onSaveDraft}
                   disabled={saving.value}
-                  class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-busy={saving.value}
+                  class={btnPrimaryClass}
                 >
                   {saving.value
                     ? editingId.value
@@ -703,7 +715,7 @@ export default defineComponent({
                 <button
                   type="button"
                   onClick={closeDraft}
-                  class="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+                  class={btnSecondaryClass}
                 >
                   Скасувати
                 </button>
@@ -722,11 +734,9 @@ export default defineComponent({
           </div>
 
           {pending.value && meals.value.length === 0 ? (
-            <p class="mt-4 text-sm text-gray-400">Завантаження…</p>
+            <LoadingState />
           ) : meals.value.length === 0 ? (
-            <p class="mt-4 rounded-lg bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
-              Ще немає записів за цей день.
-            </p>
+            <EmptyState message="Ще немає записів за цей день." />
           ) : (
             <div class="mt-4 space-y-5">
               {groupedMeals.value.map((group) => (

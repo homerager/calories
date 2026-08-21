@@ -1,5 +1,6 @@
 import { defineComponent, ref } from 'vue'
-import { NuxtLink, OAuthButtons } from '#components'
+import { ErrorBanner, NuxtLink, OAuthButtons } from '#components'
+import { btnPrimaryClass, inputClass, labelClass } from '~/utils/ui'
 
 export default defineComponent({
   name: 'LoginPage',
@@ -39,17 +40,17 @@ export default defineComponent({
       <section class="mx-auto max-w-md">
         <div class="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
           <h1 class="text-2xl font-bold text-gray-900">Вхід</h1>
-          <p class="mt-1 text-sm text-gray-500">Раді бачити вас знову.</p>
+          <p class="mt-1 text-sm text-gray-600">Раді бачити вас знову.</p>
 
           {error.value && (
-            <div class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-              {error.value}
+            <div class="mt-4">
+              <ErrorBanner message={error.value} />
             </div>
           )}
 
           <form class="mt-6 space-y-4" onSubmit={onSubmit}>
             <div>
-              <label class="block text-sm font-medium text-gray-700" for="email">
+              <label class={labelClass} for="email">
                 Email
               </label>
               <input
@@ -58,13 +59,13 @@ export default defineComponent({
                 type="email"
                 required
                 autocomplete="email"
-                class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+                class={inputClass}
                 placeholder="you@example.com"
               />
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-gray-700" for="password">
+              <label class={labelClass} for="password">
                 Пароль
               </label>
               <input
@@ -73,7 +74,7 @@ export default defineComponent({
                 type="password"
                 required
                 autocomplete="current-password"
-                class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+                class={inputClass}
                 placeholder="••••••••"
               />
             </div>
@@ -81,7 +82,8 @@ export default defineComponent({
             <button
               type="submit"
               disabled={loading.value}
-              class="w-full rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-busy={loading.value}
+              class={`${btnPrimaryClass} w-full`}
             >
               {loading.value ? 'Входимо…' : 'Увійти'}
             </button>
@@ -89,9 +91,9 @@ export default defineComponent({
 
           <OAuthButtons />
 
-          <p class="mt-6 text-center text-sm text-gray-600">
+          <p class="mt-6 text-center text-sm text-gray-700">
             Немає акаунта?{' '}
-            <NuxtLink to="/register" class="font-medium text-brand-600 hover:text-brand-700">
+            <NuxtLink to="/register" class="font-medium text-brand-700 hover:text-brand-800">
               Зареєструватися
             </NuxtLink>
           </p>

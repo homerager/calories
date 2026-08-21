@@ -5,10 +5,8 @@ import {
   PROVIDER_LABELS,
   type AiProvider,
 } from '~/composables/useAiSettings'
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
-const labelClass = 'block text-sm font-medium text-gray-700'
+import { useToast } from '~/composables/useToast'
+import { btnPrimaryClass, btnSecondaryClass, inputClass, labelClass } from '~/utils/ui'
 
 // Підказки, де взяти ключ, і приклад формату (для placeholder).
 const KEY_HINTS: Record<AiProvider, string> = {
@@ -31,6 +29,7 @@ export default defineComponent({
     definePageMeta({ middleware: 'auth' })
 
     const { settings, keys, pending, saveSettings, saveKey, deleteKey } = useAiSettings()
+    const toast = useToast()
 
     // Форма налаштувань (провайдер + моделі per-provider).
     const form = reactive<{
@@ -54,14 +53,10 @@ export default defineComponent({
     )
 
     const savingSettings = ref(false)
-    const settingsSaved = ref(false)
-    const settingsError = ref<string | null>(null)
 
     async function onSaveSettings(e: Event) {
       e.preventDefault()
       savingSettings.value = true
-      settingsSaved.value = false
-      settingsError.value = null
       try {
         await saveSettings({
           preferredProvider: form.preferredProvider || null,
@@ -69,9 +64,9 @@ export default defineComponent({
           anthropicModel: form.models.ANTHROPIC.trim() || null,
           geminiModel: form.models.GEMINI.trim() || null,
         })
-        settingsSaved.value = true
+        toast.success('Налаштування збережено')
       } catch (err: unknown) {
-        settingsError.value = extractErrorMessage(err) ?? 'Не вдалося зберегти налаштування'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося зберегти налаштування')
       } finally {
         savingSettings.value = false
       }
@@ -84,7 +79,6 @@ export default defineComponent({
       ANTHROPIC: false,
       GEMINI: false,
     })
-    const keyError = ref<string | null>(null)
 
     const keyByProvider = computed<Record<AiProvider, string | null>>(() => {
       const map: Record<AiProvider, string | null> = { OPENAI: null, ANTHROPIC: null, GEMINI: null }
@@ -94,29 +88,29 @@ export default defineComponent({
 
     async function onSaveKey(provider: AiProvider) {
       const value = keyInput[provider].trim()
-      keyError.value = null
       if (value.length < 20) {
-        keyError.value = 'Ключ виглядає надто коротким'
+        toast.error('Ключ виглядає надто коротким')
         return
       }
       keyBusy[provider] = true
       try {
         await saveKey(provider, value)
         keyInput[provider] = ''
+        toast.success('Ключ збережено')
       } catch (err: unknown) {
-        keyError.value = extractErrorMessage(err) ?? 'Не вдалося зберегти ключ'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося зберегти ключ')
       } finally {
         keyBusy[provider] = false
       }
     }
 
     async function onDeleteKey(provider: AiProvider) {
-      keyError.value = null
       keyBusy[provider] = true
       try {
         await deleteKey(provider)
+        toast.success('Ключ видалено')
       } catch (err: unknown) {
-        keyError.value = extractErrorMessage(err) ?? 'Не вдалося видалити ключ'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося видалити ключ')
       } finally {
         keyBusy[provider] = false
       }
@@ -161,17 +155,6 @@ export default defineComponent({
         {/* Провайдер + моделі */}
         <form class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSaveSettings}>
           <h2 class="text-lg font-semibold text-gray-900">Провайдер і моделі</h2>
-
-          {settingsError.value && (
-            <div class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-              {settingsError.value}
-            </div>
-          )}
-          {settingsSaved.value && !settingsError.value && (
-            <div class="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800 ring-1 ring-brand-100">
-              Налаштування збережено.
-            </div>
-          )}
 
           <div class="mt-4">
             <label class={labelClass} for="preferredProvider">
@@ -225,7 +208,8 @@ export default defineComponent({
           <button
             type="submit"
             disabled={savingSettings.value || pending.value}
-            class="mt-6 w-full rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            aria-busy={savingSettings.value}
+            class={`${btnPrimaryClass} mt-6 w-full sm:w-auto`}
           >
             {savingSettings.value ? 'Зберігаємо…' : 'Зберегти налаштування'}
           </button>
@@ -236,15 +220,9 @@ export default defineComponent({
         {/* Власні ключі */}
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Власні API-ключі</h2>
-          <p class="mt-1 text-sm text-gray-500">
+          <p class="mt-1 text-sm text-gray-600">
             Додайте свій ключ, щоб запити йшли через ваш акаунт без обмежень безкоштовної квоти.
           </p>
-
-          {keyError.value && (
-            <div class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-              {keyError.value}
-            </div>
-          )}
 
           <div class="mt-4 space-y-4">
             {AI_PROVIDERS.map((p) => {
@@ -270,7 +248,7 @@ export default defineComponent({
                   </div>
 
                   <div class="mt-3 flex flex-wrap items-end gap-3">
-                    <div class="min-w-0 flex-1">
+                    <div class="min-w-0 md:w-auto w-full md:flex-1">
                       <label class={labelClass} for={`key-${p}`}>
                         {masked ? 'Оновити ключ' : 'Додати ключ'}
                       </label>
@@ -288,7 +266,8 @@ export default defineComponent({
                       type="button"
                       onClick={() => onSaveKey(p)}
                       disabled={keyBusy[p]}
-                      class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      aria-busy={keyBusy[p]}
+                      class={btnPrimaryClass}
                     >
                       {keyBusy[p] ? 'Зберігаємо…' : 'Зберегти'}
                     </button>
@@ -297,7 +276,7 @@ export default defineComponent({
                         type="button"
                         onClick={() => onDeleteKey(p)}
                         disabled={keyBusy[p]}
-                        class="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        class={btnSecondaryClass}
                       >
                         Видалити
                       </button>

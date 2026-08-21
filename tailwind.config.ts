@@ -6,6 +6,7 @@ export default <Partial<Config>>{
     './app/layouts/**/*.{vue,tsx,ts}',
     './app/pages/**/*.{vue,tsx,ts}',
     './app/composables/**/*.ts',
+    './app/utils/**/*.{ts,tsx}',
     './app/plugins/**/*.ts',
     './app/app.vue',
     './app/error.vue',

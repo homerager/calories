@@ -3,6 +3,6 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 
 export default withNuxt(
   // Згенерований Prisma Client — не лінтимо.
-  { ignores: ['prisma/generated/**'] },
+  { ignores: ['prisma/generated/**', 'service-worker/**'] },
   // Тут можна додати власні правила / оверрайди.
 )

@@ -7,6 +7,8 @@ import {
   type ActivityLevel,
   type Goal,
 } from '~/composables/useProfile'
+import { useToast } from '~/composables/useToast'
+import { btnPrimaryClass, inputClass, labelClass } from '~/utils/ui'
 
 const SEX_OPTIONS: { value: Sex; label: string }[] = [
   { value: 'MALE', label: 'Чоловіча' },
@@ -39,16 +41,13 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
-const labelClass = 'block text-sm font-medium text-gray-700'
-
 export default defineComponent({
   name: 'ProfilePage',
   setup() {
     definePageMeta({ middleware: 'auth' })
 
     const { profile, weightHistory, pending, save, addWeight } = useProfile()
+    const toast = useToast()
 
     const form = reactive<ProfileForm>({
       name: '',
@@ -78,8 +77,6 @@ export default defineComponent({
     )
 
     const saving = ref(false)
-    const saved = ref(false)
-    const error = ref<string | null>(null)
 
     const hasNorms = computed(
       () => profile.value?.dailyKcal != null && profile.value.dailyKcal > 0,
@@ -88,8 +85,6 @@ export default defineComponent({
     async function onSubmit(e: Event) {
       e.preventDefault()
       saving.value = true
-      saved.value = false
-      error.value = null
       try {
         await save({
           name: form.name?.trim() || null,
@@ -101,9 +96,9 @@ export default defineComponent({
           activityLevel: form.activityLevel,
           goal: form.goal,
         })
-        saved.value = true
+        toast.success('Профіль збережено')
       } catch (err: unknown) {
-        error.value = extractErrorMessage(err) ?? 'Не вдалося зберегти профіль'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося зберегти профіль')
       } finally {
         saving.value = false
       }
@@ -112,22 +107,21 @@ export default defineComponent({
     const newWeight = ref<number | null>(null)
     const newDate = ref<string>(todayIso())
     const addingWeight = ref(false)
-    const weightError = ref<string | null>(null)
 
     async function onAddWeight(e: Event) {
       e.preventDefault()
       if (newWeight.value == null) {
-        weightError.value = 'Вкажіть вагу'
+        toast.error('Вкажіть вагу')
         return
       }
       addingWeight.value = true
-      weightError.value = null
       try {
         await addWeight(newWeight.value, newDate.value)
         newWeight.value = null
         newDate.value = todayIso()
+        toast.success('Зважування додано')
       } catch (err: unknown) {
-        weightError.value = extractErrorMessage(err) ?? 'Не вдалося додати зважування'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося додати зважування')
       } finally {
         addingWeight.value = false
       }
@@ -167,7 +161,7 @@ export default defineComponent({
               {macroCard('Вуглеводи', profile.value?.carbGrams, 'г', 'bg-rose-50 text-rose-800')}
             </div>
           ) : (
-            <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+            <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
               Заповніть зріст, вагу та дату народження (або вік), щоб побачити розрахунок норм.
             </p>
           )}
@@ -176,17 +170,6 @@ export default defineComponent({
         {/* Форма профілю */}
         <form class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSubmit}>
           <h2 class="text-lg font-semibold text-gray-900">Особисті дані</h2>
-
-          {error.value && (
-            <div class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-              {error.value}
-            </div>
-          )}
-          {saved.value && !error.value && (
-            <div class="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800 ring-1 ring-brand-100">
-              Профіль збережено.
-            </div>
-          )}
 
           <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div class="sm:col-span-2">
@@ -290,7 +273,8 @@ export default defineComponent({
           <button
             type="submit"
             disabled={saving.value || pending.value}
-            class="mt-6 w-full rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            aria-busy={saving.value}
+            class={`${btnPrimaryClass} mt-6 w-full sm:w-auto`}
           >
             {saving.value ? 'Зберігаємо…' : 'Зберегти профіль'}
           </button>
@@ -340,14 +324,12 @@ export default defineComponent({
             <button
               type="submit"
               disabled={addingWeight.value}
-              class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-busy={addingWeight.value}
+              class={btnPrimaryClass}
             >
               {addingWeight.value ? 'Додаємо…' : 'Додати'}
             </button>
           </form>
-          {weightError.value && (
-            <p class="mt-2 text-sm text-red-600">{weightError.value}</p>
-          )}
 
           {reversedHistory.value.length > 0 && (
             <ul class="mt-5 divide-y divide-gray-100 text-sm">

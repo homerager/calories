@@ -1,8 +1,10 @@
 import { defineComponent, computed, ref } from 'vue'
-import { NuxtLink } from '#components'
+import { EmptyState, NuxtLink } from '#components'
 import { useDiary, type MealSlot } from '~/composables/useDiary'
 import { useExercise } from '~/composables/useExercise'
 import { useWater } from '~/composables/useWater'
+import { useToast } from '~/composables/useToast'
+import { btnPrimaryClass, btnSecondaryClass } from '~/utils/ui'
 
 const SLOT_LABELS: Record<MealSlot, string> = {
   BREAKFAST: 'Сніданок',
@@ -30,6 +32,7 @@ export default defineComponent({
     const { meals, totals, norms } = useDiary()
     const { totalKcalBurned } = useExercise()
     const { totalMl, goalMl, addWater } = useWater()
+    const toast = useToast()
 
     const greetingName = computed(() => user.value?.email?.split('@')[0] ?? '')
 
@@ -53,6 +56,8 @@ export default defineComponent({
       addingWater.value = true
       try {
         await addWater(ml)
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося додати воду')
       } finally {
         addingWater.value = false
       }
@@ -191,25 +196,25 @@ export default defineComponent({
             <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
               <NuxtLink
                 to="/diary"
-                class="rounded-lg bg-brand-600 px-3 py-2 text-center font-medium text-white transition hover:bg-brand-700"
+                class={`${btnPrimaryClass} px-3 py-2 text-center text-sm`}
               >
                 Додати їжу
               </NuxtLink>
               <NuxtLink
                 to="/exercise"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-center font-medium text-gray-700 transition hover:bg-gray-50"
+                class={`${btnSecondaryClass} px-3 py-2 text-center text-sm`}
               >
                 Активність
               </NuxtLink>
               <NuxtLink
                 to="/menu"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-center font-medium text-gray-700 transition hover:bg-gray-50"
+                class={`${btnSecondaryClass} px-3 py-2 text-center text-sm`}
               >
                 Меню
               </NuxtLink>
               <NuxtLink
                 to="/stats"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-center font-medium text-gray-700 transition hover:bg-gray-50"
+                class={`${btnSecondaryClass} px-3 py-2 text-center text-sm`}
               >
                 Статистика
               </NuxtLink>
@@ -227,20 +232,20 @@ export default defineComponent({
           </div>
 
           {recentMeals.value.length === 0 ? (
-            <p class="mt-4 rounded-lg bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
-              Ще немає записів за сьогодні.{' '}
-              <NuxtLink to="/diary" class="font-medium text-brand-600 underline">
-                Додати перший
-              </NuxtLink>
-              .
-            </p>
+            <EmptyState message="Ще немає записів за сьогодні.">
+              <p class="mt-2">
+                <NuxtLink to="/diary" class="font-medium text-brand-700 underline">
+                  Додати перший
+                </NuxtLink>
+              </p>
+            </EmptyState>
           ) : (
             <ul class="mt-4 divide-y divide-gray-100">
               {recentMeals.value.map((m) => (
                 <li key={m.id} class="flex items-center gap-3 py-2.5">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                      <span class="truncate font-medium text-gray-900">{m.name}</span>
+                      <span class="block truncate font-medium text-gray-900">{m.name}</span>
                       {m.slot && (
                         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
                           {SLOT_LABELS[m.slot]}

@@ -1,6 +1,7 @@
 import { defineComponent, computed } from 'vue'
-import { CaloriesChart } from '#components'
+import { CaloriesChart, LoadingState } from '#components'
 import { useStats, type StatsRange } from '~/composables/useStats'
+import { btnTabActiveClass, btnTabIdleClass } from '~/utils/ui'
 
 const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
   { value: 'day', label: 'День' },
@@ -93,11 +94,8 @@ export default defineComponent({
                 key={o.value}
                 type="button"
                 onClick={() => (range.value = o.value)}
-                class={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  range.value === o.value
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                aria-pressed={range.value === o.value}
+                class={range.value === o.value ? btnTabActiveClass : btnTabIdleClass}
               >
                 {o.label}
               </button>
@@ -201,9 +199,7 @@ export default defineComponent({
             <h2 class="text-lg font-semibold text-gray-900">Калорії по днях</h2>
             <div class="mt-4">
               {pending.value && days.value.length === 0 ? (
-                <div class="flex h-48 items-center justify-center text-sm text-gray-400">
-                  Завантаження…
-                </div>
+                <LoadingState />
               ) : (
                 <CaloriesChart days={days.value} norm={norms.value.dailyKcal} />
               )}

@@ -1,10 +1,9 @@
 import { defineComponent, reactive, ref } from 'vue'
+import { EmptyState, LoadingState } from '#components'
 import { useWater, WATER_DAILY_GOAL_ML, type WaterItem } from '~/composables/useWater'
 import { todayIso } from '~/composables/useDiary'
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
-const labelClass = 'block text-sm font-medium text-gray-700'
+import { useToast } from '~/composables/useToast'
+import { btnGhostClass, btnPrimaryClass, inputClass, inputClassCompact, labelClass } from '~/utils/ui'
 
 // Денна ціль по воді (мл) для індикатора прогресу.
 const DAILY_GOAL_ML = WATER_DAILY_GOAL_ML
@@ -51,23 +50,24 @@ export default defineComponent({
     definePageMeta({ middleware: 'auth' })
 
     const { date, entries, totalMl, pending, saveWater, deleteWater } = useWater()
+    const toast = useToast()
 
     const form = reactive<WaterForm>({ volumeMl: '' })
     const saving = ref(false)
-    const saveError = ref<string | null>(null)
     const deletingId = ref<string | null>(null)
 
-    async function addVolume(volumeMl: number) {
+    async function addVolume(volumeMl: number): Promise<boolean> {
       if (!Number.isFinite(volumeMl) || volumeMl <= 0) {
-        saveError.value = 'Вкажіть коректний обсяг'
-        return
+        toast.error('Вкажіть коректний обсяг')
+        return false
       }
       saving.value = true
-      saveError.value = null
       try {
         await saveWater({ volumeMl })
+        return true
       } catch (err: unknown) {
-        saveError.value = extractErrorMessage(err) ?? 'Не вдалося зберегти запис'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося зберегти запис')
+        return false
       } finally {
         saving.value = false
       }
@@ -76,17 +76,19 @@ export default defineComponent({
     async function onSaveCustom() {
       const volumeMl = parseIntOrNull(form.volumeMl)
       if (volumeMl == null) {
-        saveError.value = 'Вкажіть обсяг у мілілітрах'
+        toast.error('Вкажіть обсяг у мілілітрах')
         return
       }
-      await addVolume(volumeMl)
-      if (!saveError.value) form.volumeMl = ''
+      const ok = await addVolume(volumeMl)
+      if (ok) form.volumeMl = ''
     }
 
     async function onDelete(id: string) {
       deletingId.value = id
       try {
         await deleteWater(id)
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося видалити запис')
       } finally {
         deletingId.value = null
       }
@@ -111,7 +113,7 @@ export default defineComponent({
               <button
                 type="button"
                 onClick={() => (date.value = shiftIso(date.value, -1))}
-                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                class={btnGhostClass}
                 aria-label="Попередній день"
               >
                 ←
@@ -121,13 +123,14 @@ export default defineComponent({
                 max={todayIso()}
                 value={date.value}
                 onInput={(e) => (date.value = (e.target as HTMLInputElement).value || todayIso())}
-                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+                aria-label="Дата"
+                class={inputClassCompact}
               />
               <button
                 type="button"
                 onClick={() => (date.value = shiftIso(date.value, 1))}
                 disabled={date.value >= todayIso()}
-                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                class={`${btnGhostClass} disabled:opacity-40`}
                 aria-label="Наступний день"
               >
                 →
@@ -135,7 +138,7 @@ export default defineComponent({
               <button
                 type="button"
                 onClick={() => (date.value = todayIso())}
-                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                class={btnGhostClass}
               >
                 Сьогодні
               </button>
@@ -203,13 +206,12 @@ export default defineComponent({
                 type="button"
                 onClick={onSaveCustom}
                 disabled={saving.value}
-                class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-busy={saving.value}
+                class={btnPrimaryClass}
               >
                 {saving.value ? 'Зберігаємо…' : 'Додати'}
               </button>
             </div>
-
-            {saveError.value && <p class="mt-3 text-sm text-red-600">{saveError.value}</p>}
           </div>
 
           {/* Записи дня */}
@@ -222,11 +224,9 @@ export default defineComponent({
             </div>
 
             {pending.value && entries.value.length === 0 ? (
-              <p class="mt-4 text-sm text-gray-400">Завантаження…</p>
+              <LoadingState />
             ) : entries.value.length === 0 ? (
-              <p class="mt-4 rounded-lg bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
-                Ще немає записів за цей день.
-              </p>
+              <EmptyState message="Ще немає записів за цей день." />
             ) : (
               <ul class="mt-4 divide-y divide-gray-100">
                 {entries.value.map((e) => (
@@ -240,7 +240,7 @@ export default defineComponent({
                         type="button"
                         onClick={() => onDelete(e.id)}
                         disabled={deletingId.value === e.id}
-                        class="text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+                        class="text-sm font-medium text-red-700 hover:text-red-800 disabled:opacity-50"
                       >
                         {deletingId.value === e.id ? 'Видаляємо…' : 'Видалити'}
                       </button>

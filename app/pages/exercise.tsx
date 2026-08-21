@@ -1,7 +1,10 @@
 import { computed, defineComponent, reactive, ref } from 'vue'
+import { EmptyState, LoadingState } from '#components'
 import { useExercise, type ExerciseItem } from '~/composables/useExercise'
 import { useProfile } from '~/composables/useProfile'
 import { todayIso } from '~/composables/useDiary'
+import { useToast } from '~/composables/useToast'
+import { btnGhostClass, btnPrimaryClass, inputClass, inputClassCompact, labelClass } from '~/utils/ui'
 
 // Оцінка калорій за кроками (дзеркало server/utils/steps.ts):
 // ~0.04 ккал/крок для 70 кг, лінійно від ваги. За відсутності ваги — 70 кг.
@@ -13,10 +16,6 @@ function kcalFromSteps(steps: number, weightKg?: number | null): number {
   const weight = weightKg && weightKg > 0 ? weightKg : DEFAULT_WEIGHT_KG
   return Math.round(steps * weight * KCAL_PER_STEP_PER_KG)
 }
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200'
-const labelClass = 'block text-sm font-medium text-gray-700'
 
 function parseIntOrNull(value: string): number | null {
   const n = Number(value.trim().replace(',', '.'))
@@ -53,10 +52,10 @@ export default defineComponent({
 
     const { date, entries, totalKcalBurned, pending, saveExercise, deleteExercise } = useExercise()
     const { profile } = useProfile()
+    const toast = useToast()
 
     const form = reactive<ExerciseForm>({ name: '', durationMin: '', steps: '', kcalBurned: '' })
     const saving = ref(false)
-    const saveError = ref<string | null>(null)
     const deletingId = ref<string | null>(null)
 
     // Оцінка калорій за введеними кроками (для підказки у формі).
@@ -69,11 +68,10 @@ export default defineComponent({
     async function onSave() {
       const name = form.name.trim()
       if (!name) {
-        saveError.value = 'Вкажіть назву активності'
+        toast.error('Вкажіть назву активності')
         return
       }
       saving.value = true
-      saveError.value = null
       try {
         await saveExercise({
           name,
@@ -85,8 +83,9 @@ export default defineComponent({
         form.durationMin = ''
         form.steps = ''
         form.kcalBurned = ''
+        toast.success('Активність додано')
       } catch (err: unknown) {
-        saveError.value = extractErrorMessage(err) ?? 'Не вдалося зберегти запис'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося зберегти запис')
       } finally {
         saving.value = false
       }
@@ -96,6 +95,8 @@ export default defineComponent({
       deletingId.value = id
       try {
         await deleteExercise(id)
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося видалити запис')
       } finally {
         deletingId.value = null
       }
@@ -118,7 +119,7 @@ export default defineComponent({
             <button
               type="button"
               onClick={() => (date.value = shiftIso(date.value, -1))}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              class={btnGhostClass}
               aria-label="Попередній день"
             >
               ←
@@ -128,13 +129,14 @@ export default defineComponent({
               max={todayIso()}
               value={date.value}
               onInput={(e) => (date.value = (e.target as HTMLInputElement).value || todayIso())}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+              aria-label="Дата"
+              class={inputClassCompact}
             />
             <button
               type="button"
               onClick={() => (date.value = shiftIso(date.value, 1))}
               disabled={date.value >= todayIso()}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              class={`${btnGhostClass} disabled:opacity-40`}
               aria-label="Наступний день"
             >
               →
@@ -142,7 +144,7 @@ export default defineComponent({
             <button
               type="button"
               onClick={() => (date.value = todayIso())}
-              class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              class={btnGhostClass}
             >
               Сьогодні
             </button>
@@ -232,14 +234,13 @@ export default defineComponent({
             </div>
           </div>
 
-          {saveError.value && <p class="mt-3 text-sm text-red-600">{saveError.value}</p>}
-
           <div class="mt-4">
             <button
               type="button"
               onClick={onSave}
               disabled={saving.value}
-              class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-busy={saving.value}
+              class={btnPrimaryClass}
             >
               {saving.value ? 'Зберігаємо…' : 'Додати'}
             </button>
@@ -256,17 +257,15 @@ export default defineComponent({
           </div>
 
           {pending.value && entries.value.length === 0 ? (
-            <p class="mt-4 text-sm text-gray-400">Завантаження…</p>
+            <LoadingState />
           ) : entries.value.length === 0 ? (
-            <p class="mt-4 rounded-lg bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
-              Ще немає записів за цей день.
-            </p>
+            <EmptyState message="Ще немає записів за цей день." />
           ) : (
             <ul class="mt-4 divide-y divide-gray-100">
               {entries.value.map((e) => (
                 <li key={e.id} class="flex items-center gap-3 py-3">
                   <div class="min-w-0 flex-1">
-                    <span class="truncate font-medium text-gray-900">{e.name}</span>
+                    <span class="block truncate font-medium text-gray-900">{e.name}</span>
                     <div class="mt-0.5 text-xs text-gray-500">{entryMeta(e)}</div>
                   </div>
                   <div class="shrink-0 text-right">
@@ -277,7 +276,7 @@ export default defineComponent({
                       type="button"
                       onClick={() => onDelete(e.id)}
                       disabled={deletingId.value === e.id}
-                      class="mt-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+                      class="mt-1 text-sm font-medium text-red-700 hover:text-red-800 disabled:opacity-50"
                     >
                       {deletingId.value === e.id ? 'Видаляємо…' : 'Видалити'}
                     </button>

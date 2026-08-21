@@ -1,6 +1,8 @@
-import { defineComponent, computed, ref } from 'vue'
-import { NuxtLink, DishName } from '#components'
+import { defineComponent, computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { DishName, EmptyState, ErrorBanner, LoadingState, NuxtLink } from '#components'
 import { useMenu, type DishDetails, type MenuItem, type MenuSlot } from '~/composables/useMenu'
+import { useToast } from '~/composables/useToast'
+import { btnPrimaryClass } from '~/utils/ui'
 
 const SLOT_LABELS: Record<MenuSlot, string> = {
   BREAKFAST: 'Сніданок',
@@ -51,12 +53,12 @@ export default defineComponent({
 
     const { plan, norms, pending, generate, regenerateDay, applyDay, applyItem, fetchItemDetails } =
       useMenu()
+    const toast = useToast()
 
     const generating = ref(false)
     const genError = ref<string | null>(null)
     // Ключ кнопки, яка зараз у процесі застосування (день або страва).
     const applyingKey = ref<string | null>(null)
-    const applyMsg = ref<string | null>(null)
     // dayIndex дня, що зараз перегенеровується (null — жоден).
     const regeneratingDay = ref<number | null>(null)
 
@@ -86,6 +88,13 @@ export default defineComponent({
       detailsData.value = null
       detailsError.value = null
     }
+
+    function onDetailsKeydown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeDetails()
+    }
+
+    onMounted(() => document.addEventListener('keydown', onDetailsKeydown))
+    onBeforeUnmount(() => document.removeEventListener('keydown', onDetailsKeydown))
 
     const days = computed<DayGroup[]>(() => {
       const p = plan.value
@@ -117,9 +126,9 @@ export default defineComponent({
     async function onGenerate() {
       generating.value = true
       genError.value = null
-      applyMsg.value = null
       try {
         await generate()
+        toast.success('Меню згенеровано')
       } catch (err: unknown) {
         genError.value = extractErrorMessage(err) ?? 'Не вдалося згенерувати меню'
       } finally {
@@ -132,9 +141,9 @@ export default defineComponent({
       if (!p) return
       regeneratingDay.value = dayIndex
       genError.value = null
-      applyMsg.value = null
       try {
         await regenerateDay(p.id, dayIndex)
+        toast.success('День оновлено')
       } catch (err: unknown) {
         genError.value = extractErrorMessage(err) ?? 'Не вдалося перегенерувати день'
       } finally {
@@ -147,12 +156,11 @@ export default defineComponent({
       if (!p) return
       const key = `day-${dayIndex}`
       applyingKey.value = key
-      applyMsg.value = null
       try {
         const res = await applyDay(p.id, dayIndex, date)
-        applyMsg.value = `Додано ${res.applied} страв(и) на ${formatDay(date)} у щоденник.`
+        toast.success(`Додано ${res.applied} страв(и) на ${formatDay(date)} у щоденник.`)
       } catch (err: unknown) {
-        applyMsg.value = extractErrorMessage(err) ?? 'Не вдалося додати день'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося додати день')
       } finally {
         applyingKey.value = null
       }
@@ -163,12 +171,11 @@ export default defineComponent({
       if (!p) return
       const key = `item-${item.id}`
       applyingKey.value = key
-      applyMsg.value = null
       try {
         await applyItem(p.id, item.id, date)
-        applyMsg.value = `«${item.name}» додано на ${formatDay(date)} у щоденник.`
+        toast.success(`«${item.name}» додано на ${formatDay(date)} у щоденник.`)
       } catch (err: unknown) {
-        applyMsg.value = extractErrorMessage(err) ?? 'Не вдалося додати страву'
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося додати страву')
       } finally {
         applyingKey.value = null
       }
@@ -182,7 +189,8 @@ export default defineComponent({
             type="button"
             onClick={onGenerate}
             disabled={generating.value}
-            class="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-busy={generating.value}
+            class={btnPrimaryClass}
           >
             {generating.value
               ? 'Генеруємо…'
@@ -203,29 +211,17 @@ export default defineComponent({
         )}
 
         {genError.value && (
-          <div class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-            <p>{genError.value}</p>
-            <NuxtLink to="/settings/ai-keys" class="mt-1 inline-block font-medium text-red-800 underline">
+          <ErrorBanner message={genError.value}>
+            <NuxtLink to="/settings/ai-keys" class="mt-1 inline-block font-medium text-red-900 underline">
               Перейти до налаштувань AI
             </NuxtLink>
-          </div>
-        )}
-
-        {applyMsg.value && (
-          <div class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 ring-1 ring-emerald-100">
-            {applyMsg.value}
-          </div>
+          </ErrorBanner>
         )}
 
         {pending.value && !plan.value ? (
-          <p class="text-sm text-gray-400">Завантаження…</p>
+          <LoadingState />
         ) : !plan.value ? (
-          <div class="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-gray-100">
-            <p class="text-gray-600">
-              Ще немає меню. Згенеруйте його — AI складе план на тиждень, віддаючи перевагу вашим
-              вже збереженим стравам.
-            </p>
-          </div>
+          <EmptyState message="Ще немає меню. Згенеруйте його — AI складе план на тиждень, віддаючи перевагу вашим вже збереженим стравам." />
         ) : (
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             {days.value.map((day) => {
@@ -326,12 +322,15 @@ export default defineComponent({
             onClick={closeDetails}
           >
             <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="dish-details-title"
               class="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
               onClick={(e: MouseEvent) => e.stopPropagation()}
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <h3 class="text-lg font-semibold text-gray-900">{detailsItem.value.name}</h3>
+                  <h3 id="dish-details-title" class="text-lg font-semibold text-gray-900">{detailsItem.value.name}</h3>
                   <p class="mt-0.5 text-xs text-gray-500">
                     {SLOT_LABELS[detailsItem.value.slot]} · {Math.round(detailsItem.value.portionGrams)}{' '}
                     г · {Math.round(detailsItem.value.kcal)} ккал · Б {roundMacro(detailsItem.value.protein)}{' '}
@@ -350,17 +349,16 @@ export default defineComponent({
 
               <div class="mt-4">
                 {detailsPending.value ? (
-                  <p class="text-sm text-gray-400">Готуємо деталі…</p>
+                  <LoadingState message="Готуємо деталі…" />
                 ) : detailsError.value ? (
-                  <div class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
-                    <p>{detailsError.value}</p>
+                  <ErrorBanner message={detailsError.value}>
                     <NuxtLink
                       to="/settings/ai-keys"
-                      class="mt-1 inline-block font-medium text-red-800 underline"
+                      class="mt-1 inline-block font-medium text-red-900 underline"
                     >
                       Перейти до налаштувань AI
                     </NuxtLink>
-                  </div>
+                  </ErrorBanner>
                 ) : detailsData.value ? (
                   <div class="space-y-4">
                     <div>
