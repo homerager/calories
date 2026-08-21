@@ -4,6 +4,7 @@ import { prisma } from './prisma'
 import { normalizeFoodKey } from './crypto'
 import { recomputeDailyAggregate, type DailyTotals, type DbClient } from './aggregates'
 import { toMealResponse, toPer100, type MealResponse } from './food'
+import { scheduleEnsureEmbedding } from '../ai/embeddings'
 
 // Спільна логіка створення запису прийому їжі: гарантований звʼязок із FoodItem
 // (upsert довідника без перезапису curated-даних) + перерахунок денного агрегату.
@@ -92,9 +93,11 @@ export async function createMealEntry(
     })
 
     const totals = await recomputeDailyAggregate(input.userId, input.dayStart, db)
-    return { entry, totals }
+    return { entry, totals, foodItemId }
   }
 
   const created = tx ? await run(tx) : await prisma.$transaction((t) => run(t))
+  // Після коміту: не блокуємо відповідь на HTTP embeddings.
+  if (!tx) scheduleEnsureEmbedding(created.foodItemId, input.userId)
   return { meal: toMealResponse(created.entry), totals: created.totals }
 }

@@ -40,6 +40,8 @@ npm run dev
 | `npm run start`     | Запуск зібраного сервера (`.output`, порт 3001) |
 | `npm run typecheck` | Перевірка типів (`vue-tsc`)       |
 | `npm run lint`      | Лінтинг (ESLint)                  |
+| `npm run test`      | Юніт-тести (Vitest)               |
+| `npm run db:embed`  | Backfill embeddings для довідника |
 
 ## Запуск зібраного сервера
 
@@ -113,3 +115,21 @@ tailwind.config.ts Конфіг Tailwind
 - `ENCRYPTION_KEY` — 32 байти (hex) для AES-256-GCM
 - `NUXT_SESSION_PASSWORD` — секрет сесії (≥ 32 символи)
 - OAuth та сервісні AI-ключі — за потреби
+- `NUXT_AI_EMBEDDING_PROVIDER` / `NUXT_AI_EMBEDDING_MODEL` — семантичний пошук страв
+
+## PostgreSQL + pgvector
+
+Семантичний пошук страв («Мої страви», автопідказки в щоденнику) потребує розширення
+[pgvector](https://github.com/pgvector/pgvector) у PostgreSQL. Міграція
+`fooditem_pgvector` виконує `CREATE EXTENSION IF NOT EXISTS vector` і додає колонку
+`FoodItem.embedding vector(1536)`.
+
+На керованих хостах (Neon, Supabase, RDS з pgvector) розширення зазвичай доступне.
+Для Docker використовуйте образ `pgvector/pgvector:pg17` замість голого `postgres`.
+Локально на хості встановіть пакет на кшталт `postgresql-16-pgvector` (Debian/Ubuntu)
+або зберіть [pgvector](https://github.com/pgvector/pgvector#installation).
+
+Embeddings рахуються моделлю з env (за замовчуванням OpenAI `text-embedding-3-small`)
+під час створення страви та пакетом `npm run db:embed` / `npm run db:seed`.
+Без AI-ключа пошук працює лише за назвою. Зміна провайдера/моделі потребує повторного
+backfill — у базі один спільний векторний простір.

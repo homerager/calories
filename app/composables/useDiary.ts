@@ -96,6 +96,20 @@ export interface MyDish {
   timesUsed: number
   lastUsedAt: string | null
   lastPortionGrams: number
+  similarity?: number | null
+  match?: 'exact' | 'lexical' | 'semantic'
+}
+
+/** Збіг пошуку в довіднику (автопідказки). */
+export interface FoodSearchHit {
+  id: string
+  name: string
+  kcalPer100: number
+  proteinPer100: number
+  fatPer100: number
+  carbPer100: number
+  similarity: number | null
+  match: 'exact' | 'lexical' | 'semantic'
 }
 
 export function todayIso(): string {
@@ -180,9 +194,17 @@ export function useDiary() {
     await refreshMeals()
   }
 
-  /** Особиста база страв, що вже були у прийомах їжі. */
-  function fetchMyDishes(): Promise<{ items: MyDish[] }> {
-    return $fetch<{ items: MyDish[] }>('/api/food-items/my')
+  /** Особиста база страв, що вже були у прийомах їжі. Опційний `q` — гібридний пошук. */
+  function fetchMyDishes(q?: string): Promise<{ items: MyDish[] }> {
+    const query = q && q.trim().length >= 2 ? { q: q.trim() } : undefined
+    return $fetch<{ items: MyDish[] }>('/api/food-items/my', { query })
+  }
+
+  /** Пошук у довіднику (лексика + семантика) для автопідказок. */
+  function searchFood(q: string, limit = 8): Promise<{ items: FoodSearchHit[] }> {
+    return $fetch<{ items: FoodSearchHit[] }>('/api/food-items/search', {
+      query: { q, limit },
+    })
   }
 
   return {
@@ -198,5 +220,6 @@ export function useDiary() {
     deleteMeal,
     refreshMeals,
     fetchMyDishes,
+    searchFood,
   }
 }

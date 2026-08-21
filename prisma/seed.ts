@@ -99,6 +99,16 @@ async function main() {
   }
 
   console.log('Seed completed.')
+
+  const { backfillFoodEmbeddings } = await import('../server/ai/embeddings.ts')
+  const result = await backfillFoodEmbeddings()
+  if (result.embedded > 0) {
+    console.log(
+      `Embeddings: scanned=${result.scanned} embedded=${result.embedded} skipped=${result.skipped}`,
+    )
+  } else {
+    console.log('Embeddings пропущено (немає ключа NUXT_AI_*_API_KEY або всі вектори вже є).')
+  }
 }
 
 main()

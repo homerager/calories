@@ -1,10 +1,17 @@
 import { getQuery } from 'h3'
-import { prisma } from '../../utils/prisma'
-import { normalizeFoodKey } from '../../utils/crypto'
+import { searchFoodItems } from '../../utils/foodSearch'
 
-// Ручний пошук у довіднику страв (без AI): ?q=назва. Повертає поживність на 100 г.
+// Пошук у довіднику страв: лексика + семантика (pgvector), якщо є embeddings.
+// ?q=назва&limit=20  Повертає поживність на 100 г і тип збігу.
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  const { user } = await requireUserSession(event)
+
+  assertRateLimit(event, {
+    prefix: 'food-items/search',
+    key: user.id,
+    limit: 60,
+    windowMs: 60_000,
+  })
 
   const q = getQuery(event)
   const term = typeof q.q === 'string' ? q.q.trim() : ''
@@ -12,24 +19,9 @@ export default defineEventHandler(async (event) => {
     return { items: [] }
   }
 
-  const items = await prisma.foodItem.findMany({
-    where: {
-      OR: [
-        { name: { contains: term, mode: 'insensitive' } },
-        { normalizedKey: { contains: normalizeFoodKey(term) } },
-      ],
-    },
-    orderBy: { name: 'asc' },
-    take: 20,
-    select: {
-      id: true,
-      name: true,
-      kcalPer100: true,
-      proteinPer100: true,
-      fatPer100: true,
-      carbPer100: true,
-    },
-  })
+  const rawLimit = Number(q.limit)
+  const take = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 50) : 20
 
+  const items = await searchFoodItems({ query: term, take, userId: user.id })
   return { items }
 })

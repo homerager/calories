@@ -1,9 +1,10 @@
-import { computed, defineComponent, nextTick, reactive, ref } from 'vue'
-import { EmptyState, ErrorBanner, LoadingState, NuxtLink } from '#components'
+import { computed, defineComponent, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { EmptyState, ErrorBanner, FoodSuggestions, LoadingState, NuxtLink } from '#components'
 import { compressImage } from '~/utils/image'
 import {
   useDiary,
   todayIso,
+  type FoodSearchHit,
   type MealItem,
   type MealSlot,
   type MealSource,
@@ -103,6 +104,7 @@ export default defineComponent({
       updateMeal,
       deleteMeal,
       fetchMyDishes,
+      searchFood,
     } = useDiary()
     const toast = useToast()
 
@@ -131,6 +133,9 @@ export default defineComponent({
     const dishesPending = ref(false)
     const dishesLoaded = ref(false)
     const dishesError = ref<string | null>(null)
+    const dishQuery = ref('')
+    const dishHits = ref<MyDish[] | null>(null)
+    const dishSearchPending = ref(false)
 
     async function loadMyDishes() {
       if (dishesLoaded.value || dishesPending.value) return
@@ -146,6 +151,8 @@ export default defineComponent({
         dishesPending.value = false
       }
     }
+
+    const visibleDishes = computed(() => dishHits.value ?? myDishes.value)
 
     function selectTab(next: 'text' | 'photo' | 'mine') {
       tab.value = next
@@ -177,6 +184,124 @@ export default defineComponent({
     const recognizing = ref(false)
     const recognizeError = ref<string | null>(null)
     const fileInput = ref<HTMLInputElement | null>(null)
+
+    const suggestions = ref<FoodSearchHit[]>([])
+    const suggestionsOpen = ref(false)
+    const suggestionIndex = ref(-1)
+    let suggestTimer: ReturnType<typeof setTimeout> | null = null
+    let dishTimer: ReturnType<typeof setTimeout> | null = null
+
+    function clearSuggestTimer() {
+      if (suggestTimer) {
+        clearTimeout(suggestTimer)
+        suggestTimer = null
+      }
+    }
+
+    async function loadSuggestions(term: string) {
+      if (term.length < 2) {
+        suggestions.value = []
+        suggestionsOpen.value = false
+        suggestionIndex.value = -1
+        return
+      }
+      try {
+        const res = await searchFood(term, 8)
+        suggestions.value = res.items
+        suggestionsOpen.value = res.items.length > 0
+        suggestionIndex.value = res.items.length > 0 ? 0 : -1
+      } catch {
+        suggestions.value = []
+        suggestionsOpen.value = false
+      }
+    }
+
+    watch(textInput, (value) => {
+      clearSuggestTimer()
+      const term = value.trim()
+      if (term.length < 2) {
+        suggestions.value = []
+        suggestionsOpen.value = false
+        suggestionIndex.value = -1
+        return
+      }
+      suggestTimer = setTimeout(() => void loadSuggestions(term), 280)
+    })
+
+    watch(dishQuery, (value) => {
+      if (dishTimer) clearTimeout(dishTimer)
+      const term = value.trim()
+      if (term.length < 2) {
+        dishHits.value = null
+        dishSearchPending.value = false
+        return
+      }
+      dishSearchPending.value = true
+      dishTimer = setTimeout(async () => {
+        try {
+          const res = await fetchMyDishes(term)
+          dishHits.value = res.items
+        } catch (err: unknown) {
+          dishesError.value = extractErrorMessage(err) ?? 'Не вдалося знайти страви'
+        } finally {
+          dishSearchPending.value = false
+        }
+      }, 280)
+    })
+
+    onBeforeUnmount(() => {
+      clearSuggestTimer()
+      if (dishTimer) clearTimeout(dishTimer)
+    })
+
+    function openSuggestionDraft(item: FoodSearchHit) {
+      suggestionsOpen.value = false
+      suggestionIndex.value = -1
+      fillDraft(
+        {
+          name: item.name,
+          portionGrams: 100,
+          kcal: roundKcal(item.kcalPer100),
+          protein: roundMacro(item.proteinPer100),
+          fat: roundMacro(item.fatPer100),
+          carb: roundMacro(item.carbPer100),
+          confidence: 1,
+          per100: {
+            kcal: item.kcalPer100,
+            protein: item.proteinPer100,
+            fat: item.fatPer100,
+            carb: item.carbPer100,
+          },
+          foodItemId: item.id,
+          suggestedSource: 'MANUAL',
+        },
+        { cacheHit: true, usingFallback: false },
+      )
+      nextTick(() => editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    }
+
+    function onTextKeydown(e: KeyboardEvent) {
+      if (!suggestionsOpen.value || suggestions.value.length === 0) {
+        if (e.key === 'Enter') void onRecognizeText()
+        return
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        suggestionIndex.value = (suggestionIndex.value + 1) % suggestions.value.length
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        suggestionIndex.value =
+          (suggestionIndex.value - 1 + suggestions.value.length) % suggestions.value.length
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        const item =
+          suggestionIndex.value >= 0 ? suggestions.value[suggestionIndex.value] : suggestions.value[0]
+        if (item) openSuggestionDraft(item)
+      } else if (e.key === 'Escape') {
+        suggestionsOpen.value = false
+        suggestionIndex.value = -1
+      }
+    }
 
     // Чернетка (редагована перед збереженням).
     const draft = reactive<DraftForm>({
@@ -287,6 +412,7 @@ export default defineComponent({
         recognizeError.value = 'Опишіть страву детальніше'
         return
       }
+      suggestionsOpen.value = false
       recognizing.value = true
       recognizeError.value = null
       try {
@@ -551,45 +677,90 @@ export default defineComponent({
                 <LoadingState />
               ) : dishesError.value ? (
                 <ErrorBanner message={dishesError.value} />
-              ) : myDishes.value.length === 0 ? (
+              ) : myDishes.value.length === 0 && !dishQuery.value.trim() ? (
                 <EmptyState message="Тут зʼявляться страви, які ви вже додавали. Додайте кілька записів через текст, фото чи вручну." />
               ) : (
-                <ul class="divide-y divide-gray-100">
-                  {myDishes.value.map((d) => (
-                    <li key={d.foodItemId} class="flex items-center gap-3 py-2.5">
-                      <div class="min-w-0 flex-1">
-                        <div class="truncate font-medium text-gray-900">{d.name}</div>
-                        <div class="mt-0.5 text-xs text-gray-500">
-                          {Math.round(d.per100.kcal)} ккал/100 г · Б {roundMacro(d.per100.protein)} · Ж{' '}
-                          {roundMacro(d.per100.fat)} · В {roundMacro(d.per100.carb)} ·{' '}
-                          <span class="text-gray-400">{d.timesUsed}×</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openDishDraft(d)}
-                        class="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700"
-                      >
-                        Додати
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <label class={labelClass} for="dishSearch">Пошук у моїх стравах</label>
+                  <input
+                    id="dishSearch"
+                    type="search"
+                    value={dishQuery.value}
+                    onInput={(e) => (dishQuery.value = (e.target as HTMLInputElement).value)}
+                    class={inputClass}
+                    placeholder="напр. гречка, борщ, омлет"
+                    autocomplete="off"
+                  />
+                  {dishSearchPending.value ? (
+                    <div class="mt-3">
+                      <LoadingState />
+                    </div>
+                  ) : visibleDishes.value.length === 0 ? (
+                    <p class="mt-3 text-sm text-gray-500">Нічого не знайдено. Спробуйте інший запит.</p>
+                  ) : (
+                    <ul class="mt-2 divide-y divide-gray-100">
+                      {visibleDishes.value.map((d) => (
+                        <li key={d.foodItemId} class="flex items-center gap-3 py-2.5">
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate font-medium text-gray-900">{d.name}</div>
+                            <div class="mt-0.5 text-xs text-gray-500">
+                              {Math.round(d.per100.kcal)} ккал/100 г · Б {roundMacro(d.per100.protein)} · Ж{' '}
+                              {roundMacro(d.per100.fat)} · В {roundMacro(d.per100.carb)}
+                              {d.timesUsed > 0 ? (
+                                <span class="text-gray-400"> · {d.timesUsed}×</span>
+                              ) : null}
+                              {d.match === 'semantic' ? (
+                                <span class="ml-1 text-brand-700">· схожа страва</span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openDishDraft(d)}
+                            class="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700"
+                          >
+                            Додати
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
           ) : tab.value === 'text' ? (
             <div class="mt-4 flex flex-wrap items-end gap-3">
-              <div class="min-w-0 md:w-auto w-full md:flex-1">
+              <div class="relative min-w-0 w-full md:w-auto md:flex-1">
                 <label class={labelClass} for="foodText">Опис страви</label>
                 <input
                   id="foodText"
                   type="text"
                   value={textInput.value}
                   onInput={(e) => (textInput.value = (e.target as HTMLInputElement).value)}
-                  onKeydown={(e) => e.key === 'Enter' && onRecognizeText()}
+                  onKeydown={onTextKeydown}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      suggestionsOpen.value = false
+                    }, 120)
+                  }}
                   class={inputClass}
                   placeholder="напр. тарілка гречки з куркою, 300 г"
+                  autocomplete="off"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={suggestionsOpen.value}
+                  aria-controls="food-suggestions"
+                  aria-activedescendant={
+                    suggestionIndex.value >= 0 ? `food-suggestions-${suggestionIndex.value}` : undefined
+                  }
                 />
+                {suggestionsOpen.value ? (
+                  <FoodSuggestions
+                    items={suggestions.value}
+                    activeIndex={suggestionIndex.value}
+                    onSelect={openSuggestionDraft}
+                  />
+                ) : null}
               </div>
               <button
                 type="button"

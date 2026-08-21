@@ -172,8 +172,9 @@ model FoodItem {
   fatPer100     Float
   carbPer100    Float
 
-  // Задел під семантичний пошук (embedding). Поки не використовується.
-  embedding Json?
+  // Embedding назви для семантичного пошуку (pgvector). Пишеться/читається
+  // лише через raw SQL — Prisma не вміє тип vector. Розмірність 1536.
+  embedding Unsupported("vector(1536)")?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

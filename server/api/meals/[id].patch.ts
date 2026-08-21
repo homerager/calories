@@ -4,6 +4,7 @@ import { prisma } from '../../utils/prisma'
 import { normalizeFoodKey } from '../../utils/crypto'
 import { recomputeDailyAggregate, startOfDay } from '../../utils/aggregates'
 import { toMealResponse, toPer100 } from '../../utils/food'
+import { scheduleEnsureEmbedding } from '../../ai/embeddings'
 
 // Редагування наявного запису прийому їжі: назва, порція, БЖВ, прийом їжі.
 // День запису не змінюється; при зміні назви пере-привʼязуємо FoodItem (upsert
@@ -96,8 +97,9 @@ export default defineEventHandler(async (event) => {
     })
 
     const totals = await recomputeDailyAggregate(user.id, dayStart, tx)
-    return { entry, totals }
+    return { entry, totals, foodItemId }
   })
 
+  scheduleEnsureEmbedding(updated.foodItemId, user.id)
   return { meal: toMealResponse(updated.entry), totals: updated.totals }
 })

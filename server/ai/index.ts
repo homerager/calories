@@ -282,3 +282,15 @@ export {
   freeQuotaLimit,
   freeQuotaPeriodMs,
 } from './config'
+export {
+  embedQuery,
+  embedTexts,
+  ensureFoodEmbedding,
+  scheduleEnsureEmbedding,
+  backfillFoodEmbeddings,
+  embeddingsConfigured,
+  embeddingProvider,
+  embeddingModel,
+  type EmbeddingTask,
+  type BackfillResult,
+} from './embeddings'
