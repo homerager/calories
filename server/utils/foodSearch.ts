@@ -1,12 +1,14 @@
 import { Prisma } from '../../prisma/generated/client/client'
 import { prisma } from './prisma'
 import { normalizeFoodKey } from './crypto'
-import { EMBEDDING_DIMENSIONS, toVectorLiteral } from './vector'
+import { EMBEDDING_DIMENSIONS, normalizeVector, toFloatArrayLiteral } from './vector'
 import { rankFoodSearchHits, type FoodCatalogRow, type FoodSearchHit } from './foodSearchRank'
 import { embedQuery } from '../ai/embeddings'
 import type { UserDish } from './myDishes'
 
-// Гібридний пошук страв: лексика (ILIKE / normalizedKey) + косинусна близькість pgvector.
+// Гібридний пошук страв: лексика (ILIKE / normalizedKey) + косинусна схожість.
+// Вектори лежать у double precision[]; схожість = скалярний добуток нормалізованих
+// векторів, порахований у SQL через unnest (без pgvector).
 
 const CATALOG_SELECT = {
   id: true,
@@ -42,7 +44,7 @@ export async function searchFoodItemsLexical(
   })
 }
 
-/** kNN за косинусною відстанню pgvector. Порожньо, якщо немає векторів / розширення. */
+/** Найближчі за косинусною схожістю страви. Порожньо, якщо векторів ще немає. */
 export async function searchFoodItemsSemantic(
   vector: number[],
   take: number,
@@ -50,10 +52,9 @@ export async function searchFoodItemsSemantic(
 ): Promise<SemanticRow[]> {
   if (vector.length !== EMBEDDING_DIMENSIONS) return []
   const safeTake = Math.max(1, Math.min(50, Math.floor(take)))
-  const vecSql = Prisma.raw(`'${toVectorLiteral(vector)}'::vector`)
+  const literal = toFloatArrayLiteral(normalizeVector(vector))
   const idClause =
     ids && ids.length > 0 ? Prisma.sql`AND id IN (${Prisma.join(ids)})` : Prisma.empty
-  const limitSql = Prisma.raw(String(safeTake))
 
   try {
     const rows = await prisma.$queryRaw<Array<SemanticRow & { similarity: unknown }>>`
@@ -64,12 +65,15 @@ export async function searchFoodItemsSemantic(
         "proteinPer100",
         "fatPer100",
         "carbPer100",
-        (1 - (embedding <=> ${vecSql}))::double precision AS similarity
+        (
+          SELECT COALESCE(SUM(a * b), 0)
+          FROM unnest("embedding", ${literal}::double precision[]) AS t(a, b)
+        ) AS similarity
       FROM "FoodItem"
-      WHERE embedding IS NOT NULL
+      WHERE cardinality("embedding") = ${EMBEDDING_DIMENSIONS}
       ${idClause}
-      ORDER BY embedding <=> ${vecSql}
-      LIMIT ${limitSql}
+      ORDER BY similarity DESC
+      LIMIT ${safeTake}
     `
     return rows
       .map((r) => ({

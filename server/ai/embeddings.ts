@@ -1,14 +1,14 @@
 import type { AiProvider } from '../../prisma/generated/client/enums'
-import { Prisma } from '../../prisma/generated/client/client'
 import { prisma } from '../utils/prisma'
 import { decrypt } from '../utils/crypto'
-import { EMBEDDING_DIMENSIONS, toVectorLiteral } from '../utils/vector'
+import { EMBEDDING_DIMENSIONS, assertVector, normalizeVector } from '../utils/vector'
 import { fetchWithRetry, readJsonOrThrow } from './providers/shared'
 import { serviceKey } from './config'
 
 // Генерація та збереження embedding назв страв.
-// Один простір векторів на інсталяцію: провайдер/модель з env, розмірність 1536
-// (колонка pgvector). Зміна моделі потребує повторного backfill.
+// Один простір векторів на інсталяцію: провайдер/модель з env, розмірність
+// EMBEDDING_DIMENSIONS. Вектори зберігаються нормалізованими у double precision[].
+// Зміна моделі потребує повторного backfill.
 
 export type EmbeddingTask = 'query' | 'document'
 
@@ -110,13 +110,14 @@ interface GeminiEmbeddingResponse {
   embeddings?: Array<{ values?: number[] }>
 }
 
+/** Валідує розмірність і нормалізує вектор (щоб dot product == cosine). */
 function assertDim(values: number[], provider: string): number[] {
   if (values.length !== EMBEDDING_DIMENSIONS) {
     throw new Error(
       `${provider}: очікувалась розмірність ${EMBEDDING_DIMENSIONS}, отримано ${values.length}`,
     )
   }
-  return values
+  return normalizeVector(assertVector(values))
 }
 
 async function embedOpenAI(texts: string[], key: EmbeddingKey, task: EmbeddingTask): Promise<number[][]> {
@@ -200,22 +201,21 @@ export async function embedQuery(text: string, userId?: string): Promise<number[
   return vector
 }
 
-/** Записує вектор у колонку pgvector. */
+/** Записує нормалізований вектор у колонку double precision[]. */
 export async function saveFoodEmbedding(foodItemId: string, values: number[]): Promise<void> {
-  const vecSql = Prisma.raw(`'${toVectorLiteral(values)}'::vector`)
-  await prisma.$executeRaw`
-    UPDATE "FoodItem"
-    SET embedding = ${vecSql}
-    WHERE id = ${foodItemId}
-  `
+  const vector = normalizeVector(assertVector(values))
+  await prisma.foodItem.update({
+    where: { id: foodItemId },
+    data: { embedding: { set: vector } },
+  })
 }
 
-/** Чи вже є embedding у рядка. */
+/** Чи вже є embedding у рядка (непорожній масив потрібної розмірності). */
 export async function foodItemHasEmbedding(foodItemId: string): Promise<boolean> {
-  const rows = await prisma.$queryRaw<Array<{ present: boolean | null }>>`
-    SELECT (embedding IS NOT NULL) AS present FROM "FoodItem" WHERE id = ${foodItemId}
+  const rows = await prisma.$queryRaw<Array<{ n: number | null }>>`
+    SELECT cardinality("embedding") AS n FROM "FoodItem" WHERE id = ${foodItemId}
   `
-  return Boolean(rows[0]?.present)
+  return Number(rows[0]?.n ?? 0) === EMBEDDING_DIMENSIONS
 }
 
 /**
@@ -269,8 +269,11 @@ export async function backfillFoodEmbeddings(batchSize = 50): Promise<BackfillRe
   const key = await resolveEmbeddingKey()
   if (!key) return { scanned: 0, embedded: 0, skipped: 0 }
 
+  // Рядки без вектора або з вектором іншої розмірності (після зміни моделі).
   const rows = await prisma.$queryRaw<Array<{ id: string; name: string }>>`
-    SELECT id, name FROM "FoodItem" WHERE embedding IS NULL
+    SELECT id, name
+    FROM "FoodItem"
+    WHERE COALESCE(cardinality("embedding"), 0) <> ${EMBEDDING_DIMENSIONS}
   `
   const scanned = rows.length
   if (scanned === 0) return { scanned: 0, embedded: 0, skipped: 0 }

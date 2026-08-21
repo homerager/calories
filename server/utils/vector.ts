@@ -1,17 +1,17 @@
-// Чисті хелпери для векторів pgvector / embeddings.
-// Розмірність має збігатися з колонкою vector(1536) у міграції.
+// Чисті хелпери для embeddings.
+// Вектори зберігаються у звичайній колонці PostgreSQL `double precision[]`
+// (`FoodItem.embedding`) — pgvector недоступний на керованих хостах без прав
+// суперкористувача. Схожість рахується як скалярний добуток нормалізованих
+// векторів (== косинусна схожість) прямо в SQL через unnest.
 
-/** Розмірність embedding (OpenAI text-embedding-3-small / Gemini 1536). */
-export const EMBEDDING_DIMENSIONS = 1536
+/** Розмірність embedding (OpenAI dimensions=768 / Gemini outputDimensionality=768). */
+export const EMBEDDING_DIMENSIONS = 768
 
 /** Мінімальна косинусна схожість, щоб показувати суто семантичний збіг. */
 export const MIN_SEMANTIC_SIMILARITY = 0.42
 
-/**
- * Серіалізує масив чисел у літерал pgvector: `[0.1,0.2,...]`.
- * Кидає, якщо довжина/значення невалідні (захист від SQL-інʼєкції через raw).
- */
-export function toVectorLiteral(values: number[]): string {
+/** Перевіряє довжину та скінченність значень вектора. */
+export function assertVector(values: number[]): number[] {
   if (values.length !== EMBEDDING_DIMENSIONS) {
     throw new Error(`Очікується вектор довжини ${EMBEDDING_DIMENSIONS}, отримано ${values.length}`)
   }
@@ -20,7 +20,29 @@ export function toVectorLiteral(values: number[]): string {
       throw new Error('Вектор містить нечислове значення')
     }
   }
-  return `[${values.join(',')}]`
+  return values
+}
+
+/**
+ * Нормалізує вектор до одиничної довжини.
+ * Тоді скалярний добуток двох векторів дорівнює косинусній схожості —
+ * і SQL не мусить рахувати норми на кожен рядок.
+ */
+export function normalizeVector(values: number[]): number[] {
+  let sum = 0
+  for (const v of values) sum += v * v
+  const norm = Math.sqrt(sum)
+  if (norm === 0) return values.slice()
+  return values.map((v) => v / norm)
+}
+
+/**
+ * Серіалізує масив у літерал масиву PostgreSQL: `{0.1,-0.2,...}`.
+ * Кидає, якщо довжина/значення невалідні.
+ */
+export function toFloatArrayLiteral(values: number[]): string {
+  assertVector(values)
+  return `{${values.join(',')}}`
 }
 
 /** Косинусна схожість двох векторів (1 = однакові, 0 = ортогональні, −1 = протилежні). */

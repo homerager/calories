@@ -1,14 +1,13 @@
--- Семантичний пошук страв: pgvector замість JSON-заглушки FoodItem.embedding.
--- Потрібне розширення vector (https://github.com/pgvector/pgvector).
--- Розмірність 1536 відповідає OpenAI text-embedding-3-small та Gemini
--- gemini-embedding-001 з outputDimensionality=1536.
-
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Семантичний пошук страв: замінюємо JSON-заглушку FoodItem.embedding на масив
+-- double precision[].
+--
+-- Свідомо БЕЗ pgvector: `CREATE EXTENSION vector` потребує прав суперкористувача,
+-- яких немає на керованих PostgreSQL-хостах (помилка 42501). Схожість рахується
+-- як скалярний добуток нормалізованих векторів через unnest — працює на будь-якому
+-- PostgreSQL без розширень.
+--
+-- (Ім'я папки міграції історичне — воно вже зафіксоване в _prisma_migrations.)
 
 ALTER TABLE "FoodItem" DROP COLUMN IF EXISTS "embedding";
 
-ALTER TABLE "FoodItem" ADD COLUMN "embedding" vector(1536);
-
-CREATE INDEX "FoodItem_embedding_hnsw_idx"
-  ON "FoodItem"
-  USING hnsw ("embedding" vector_cosine_ops);
+ALTER TABLE "FoodItem" ADD COLUMN "embedding" DOUBLE PRECISION[] DEFAULT ARRAY[]::DOUBLE PRECISION[];

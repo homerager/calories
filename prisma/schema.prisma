@@ -172,9 +172,10 @@ model FoodItem {
   fatPer100     Float
   carbPer100    Float
 
-  // Embedding назви для семантичного пошуку (pgvector). Пишеться/читається
-  // лише через raw SQL — Prisma не вміє тип vector. Розмірність 1536.
-  embedding Unsupported("vector(1536)")?
+  // Embedding назви для семантичного пошуку: звичайний double precision[]
+  // (pgvector потребує прав суперкористувача, яких немає на керованих хостах).
+  // Порожній масив = вектора ще немає. Розмірність — EMBEDDING_DIMENSIONS.
+  embedding Float[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

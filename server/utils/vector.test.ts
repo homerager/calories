@@ -3,7 +3,8 @@ import {
   EMBEDDING_DIMENSIONS,
   cosineSimilarity,
   lexicalScore,
-  toVectorLiteral,
+  normalizeVector,
+  toFloatArrayLiteral,
 } from './vector'
 import { rankFoodSearchHits } from './foodSearchRank'
 
@@ -13,26 +14,45 @@ function pad(values: number[]): number[] {
   return out.slice(0, EMBEDDING_DIMENSIONS)
 }
 
-describe('toVectorLiteral', () => {
-  it('серіалізує валідний вектор', () => {
+describe('toFloatArrayLiteral', () => {
+  it('серіалізує валідний вектор у літерал масиву PostgreSQL', () => {
     const v = pad([0.1, -2, 3.5])
-    const literal = toVectorLiteral(v)
-    expect(literal.startsWith('[')).toBe(true)
-    expect(literal.endsWith(']')).toBe(true)
+    const literal = toFloatArrayLiteral(v)
+    expect(literal.startsWith('{')).toBe(true)
+    expect(literal.endsWith('}')).toBe(true)
     expect(literal).toContain('0.1')
     expect(literal).toContain('-2')
   })
 
   it('кидає на хибній довжині', () => {
-    expect(() => toVectorLiteral([1, 2, 3])).toThrow(/довжини/)
+    expect(() => toFloatArrayLiteral([1, 2, 3])).toThrow(/довжини/)
   })
 
   it('кидає на NaN/Infinity', () => {
     const v = pad([])
     v[0] = Number.NaN
-    expect(() => toVectorLiteral(v)).toThrow(/нечислове/)
+    expect(() => toFloatArrayLiteral(v)).toThrow(/нечислове/)
     v[0] = Infinity
-    expect(() => toVectorLiteral(v)).toThrow(/нечислове/)
+    expect(() => toFloatArrayLiteral(v)).toThrow(/нечислове/)
+  })
+})
+
+describe('normalizeVector', () => {
+  it('приводить довжину до 1', () => {
+    const n = normalizeVector([3, 4])
+    expect(n[0]).toBeCloseTo(0.6)
+    expect(n[1]).toBeCloseTo(0.8)
+  })
+
+  it('після нормалізації скалярний добуток дорівнює косинусній схожості', () => {
+    const a = normalizeVector([1, 2, 3])
+    const b = normalizeVector([2, 1, 0.5])
+    const dot = a.reduce((acc, x, i) => acc + x * b[i]!, 0)
+    expect(dot).toBeCloseTo(cosineSimilarity([1, 2, 3], [2, 1, 0.5]))
+  })
+
+  it('нульовий вектор лишається нульовим', () => {
+    expect(normalizeVector([0, 0])).toEqual([0, 0])
   })
 })
 

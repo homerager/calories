@@ -117,19 +117,22 @@ tailwind.config.ts Конфіг Tailwind
 - OAuth та сервісні AI-ключі — за потреби
 - `NUXT_AI_EMBEDDING_PROVIDER` / `NUXT_AI_EMBEDDING_MODEL` — семантичний пошук страв
 
-## PostgreSQL + pgvector
+## Семантичний пошук страв
 
-Семантичний пошук страв («Мої страви», автопідказки в щоденнику) потребує розширення
-[pgvector](https://github.com/pgvector/pgvector) у PostgreSQL. Міграція
-`fooditem_pgvector` виконує `CREATE EXTENSION IF NOT EXISTS vector` і додає колонку
-`FoodItem.embedding vector(1536)`.
+«Мої страви» та автопідказки в щоденнику шукають гібридно: спершу збіг за назвою
+(ILIKE / нормалізований ключ), паралельно — за змістом (embeddings).
 
-На керованих хостах (Neon, Supabase, RDS з pgvector) розширення зазвичай доступне.
-Для Docker використовуйте образ `pgvector/pgvector:pg17` замість голого `postgres`.
-Локально на хості встановіть пакет на кшталт `postgresql-16-pgvector` (Debian/Ubuntu)
-або зберіть [pgvector](https://github.com/pgvector/pgvector#installation).
+**Розширення pgvector не потрібне.** Вектори лежать у звичайній колонці
+`FoodItem.embedding DOUBLE PRECISION[]`, зберігаються нормалізованими, а схожість
+рахується як скалярний добуток через `unnest(...)` у SQL. Це працює на керованих
+хостах, де `CREATE EXTENSION vector` заборонений (потрібні права суперкористувача,
+помилка `42501`).
 
-Embeddings рахуються моделлю з env (за замовчуванням OpenAI `text-embedding-3-small`)
-під час створення страви та пакетом `npm run db:embed` / `npm run db:seed`.
+Embeddings рахує модель із env: Gemini `gemini-embedding-001` або OpenAI
+`text-embedding-3-small` (Anthropic embeddings не має). Вектори з’являються при
+створенні страви, а для наявного довідника — через `npm run db:embed`
+(також викликається в кінці `npm run db:seed`).
+
 Без AI-ключа пошук працює лише за назвою. Зміна провайдера/моделі потребує повторного
-backfill — у базі один спільний векторний простір.
+`npm run db:embed` — у базі один спільний векторний простір; backfill автоматично
+перераховує рядки з іншою розмірністю.
