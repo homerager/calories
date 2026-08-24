@@ -26,6 +26,9 @@ export const profileUpdateSchema = z.object({
   heightCm: z.number().min(50, 'Некоректний зріст').max(272, 'Некоректний зріст').nullish(),
   weightKg: z.number().min(20, 'Некоректна вага').max(500, 'Некоректна вага').nullish(),
   targetWeightKg: z.number().min(20, 'Некоректна цільова вага').max(500, 'Некоректна цільова вага').nullish(),
+  chestCm: z.number().min(30, 'Некоректний обхват грудей').max(300, 'Некоректний обхват грудей').nullish(),
+  waistCm: z.number().min(30, 'Некоректний обхват талії').max(300, 'Некоректний обхват талії').nullish(),
+  hipsCm: z.number().min(30, 'Некоректний обхват стегон').max(300, 'Некоректний обхват стегон').nullish(),
   activityLevel: activityLevelSchema,
   goal: goalSchema,
 })

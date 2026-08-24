@@ -131,6 +131,9 @@ model Profile {
   heightEnc       String? // зріст, см
   weightEnc       String? // поточна вага, кг
   targetWeightEnc String? // цільова вага, кг
+  chestEnc        String? // обхват грудей, см
+  waistEnc        String? // обхват талії, см
+  hipsEnc         String? // обхват стегон, см
 
   // Розраховані добові норми (Міффлін-Сан Жеор → TDEE → корекція за ціллю).
   dailyKcal    Int?

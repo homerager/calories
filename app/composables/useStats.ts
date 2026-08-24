@@ -12,6 +12,7 @@ export interface StatsDay {
   fat: number
   carb: number
   burned: number
+  waterMl: number
 }
 
 export interface StatsMacros {

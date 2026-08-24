@@ -15,6 +15,9 @@ export interface ProfileRecord {
   heightEnc: string | null
   weightEnc: string | null
   targetWeightEnc: string | null
+  chestEnc: string | null
+  waistEnc: string | null
+  hipsEnc: string | null
   dailyKcal: number | null
   proteinGrams: number | null
   fatGrams: number | null
@@ -31,6 +34,9 @@ export interface ProfileResponse {
   heightCm: number | null
   weightKg: number | null
   targetWeightKg: number | null
+  chestCm: number | null
+  waistCm: number | null
+  hipsCm: number | null
   dailyKcal: number | null
   proteinGrams: number | null
   fatGrams: number | null
@@ -60,6 +66,9 @@ export function toProfileResponse(profile: ProfileRecord): ProfileResponse {
     heightCm: decryptNumber(profile.heightEnc),
     weightKg: decryptNumber(profile.weightEnc),
     targetWeightKg: decryptNumber(profile.targetWeightEnc),
+    chestCm: decryptNumber(profile.chestEnc),
+    waistCm: decryptNumber(profile.waistEnc),
+    hipsCm: decryptNumber(profile.hipsEnc),
     dailyKcal: profile.dailyKcal,
     proteinGrams: profile.proteinGrams,
     fatGrams: profile.fatGrams,

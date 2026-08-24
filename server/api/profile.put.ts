@@ -46,6 +46,9 @@ export default defineEventHandler(async (event) => {
   const heightEnc = data.heightCm != null ? encrypt(String(data.heightCm)) : null
   const weightEnc = data.weightKg != null ? encrypt(String(data.weightKg)) : null
   const targetWeightEnc = data.targetWeightKg != null ? encrypt(String(data.targetWeightKg)) : null
+  const chestEnc = data.chestCm != null ? encrypt(String(data.chestCm)) : null
+  const waistEnc = data.waistCm != null ? encrypt(String(data.waistCm)) : null
+  const hipsEnc = data.hipsCm != null ? encrypt(String(data.hipsCm)) : null
 
   const persisted = {
     name: data.name ?? null,
@@ -57,6 +60,9 @@ export default defineEventHandler(async (event) => {
     heightEnc,
     weightEnc,
     targetWeightEnc,
+    chestEnc,
+    waistEnc,
+    hipsEnc,
     dailyKcal: norms?.dailyKcal ?? null,
     proteinGrams: norms?.proteinGrams ?? null,
     fatGrams: norms?.fatGrams ?? null,

@@ -21,6 +21,9 @@ export default defineComponent({
       heightCm: null,
       weightKg: null,
       targetWeightKg: null,
+      chestCm: null,
+      waistCm: null,
+      hipsCm: null,
       activityLevel: 'SEDENTARY',
       goal: 'MAINTAIN',
     })
@@ -36,6 +39,9 @@ export default defineComponent({
         form.heightCm = p.heightCm
         form.weightKg = p.weightKg
         form.targetWeightKg = p.targetWeightKg
+        form.chestCm = p.chestCm
+        form.waistCm = p.waistCm
+        form.hipsCm = p.hipsCm
         form.activityLevel = p.activityLevel
         form.goal = p.goal
       },
@@ -60,6 +66,9 @@ export default defineComponent({
           heightCm: form.heightCm,
           weightKg: form.weightKg,
           targetWeightKg: form.targetWeightKg,
+          chestCm: form.chestCm,
+          waistCm: form.waistCm,
+          hipsCm: form.hipsCm,
           activityLevel: form.activityLevel,
           goal: form.goal,
         })
@@ -256,6 +265,58 @@ export default defineComponent({
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <h2 class="mt-6 border-t border-gray-100 pt-6 text-lg font-semibold text-gray-900">
+            Виміри тіла
+          </h2>
+          <p class="mt-1 text-sm text-gray-500">Необовʼязково. Допомагає стежити за зміною форми тіла.</p>
+
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label class={labelClass} for="chest">Груди, см</label>
+              <input
+                id="chest"
+                type="number"
+                min={30}
+                max={300}
+                step="0.1"
+                value={form.chestCm ?? ''}
+                onInput={(e) => (form.chestCm = parseNum((e.target as HTMLInputElement).value))}
+                class={inputClass}
+                placeholder="напр. 96"
+              />
+            </div>
+
+            <div>
+              <label class={labelClass} for="waist">Талія, см</label>
+              <input
+                id="waist"
+                type="number"
+                min={30}
+                max={300}
+                step="0.1"
+                value={form.waistCm ?? ''}
+                onInput={(e) => (form.waistCm = parseNum((e.target as HTMLInputElement).value))}
+                class={inputClass}
+                placeholder="напр. 78"
+              />
+            </div>
+
+            <div>
+              <label class={labelClass} for="hips">Стегна, см</label>
+              <input
+                id="hips"
+                type="number"
+                min={30}
+                max={300}
+                step="0.1"
+                value={form.hipsCm ?? ''}
+                onInput={(e) => (form.hipsCm = parseNum((e.target as HTMLInputElement).value))}
+                class={inputClass}
+                placeholder="напр. 100"
+              />
             </div>
           </div>
 

@@ -1,6 +1,8 @@
 import { defineComponent, computed } from 'vue'
-import { CaloriesChart, LoadingState } from '#components'
+import { CaloriesChart, LoadingState, WaterChart, WeightChart } from '#components'
 import { useStats, type StatsRange } from '~/composables/useStats'
+import { useProfile } from '~/composables/useProfile'
+import { WATER_DAILY_GOAL_ML } from '~/composables/useWater'
 import { btnTabActiveClass, btnTabIdleClass } from '~/utils/ui'
 
 const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
@@ -77,6 +79,8 @@ export default defineComponent({
       weightActual,
       pending,
     } = useStats()
+
+    const { profile, weightHistory } = useProfile()
 
     const isDay = computed(() => range.value === 'day')
 
@@ -193,7 +197,7 @@ export default defineComponent({
           )}
         </div>
 
-        {/* Графік добових калорій */}
+         {/* Графік добових калорій */}
         {!isDay.value && (
           <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
             <h2 class="text-lg font-semibold text-gray-900">Калорії по днях</h2>
@@ -206,6 +210,44 @@ export default defineComponent({
             </div>
           </div>
         )}
+
+        {/* Графік вживання води */}
+        {!isDay.value && (
+          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+            <h2 class="text-lg font-semibold text-gray-900">Вода по днях</h2>
+            <div class="mt-4">
+              {pending.value && days.value.length === 0 ? (
+                <LoadingState />
+              ) : (
+                <WaterChart days={days.value} goalMl={WATER_DAILY_GOAL_ML} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Динаміка ваги */}
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 class="text-lg font-semibold text-gray-900">Динаміка ваги</h2>
+            <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-500">
+              {profile.value?.weightKg != null && (
+                <span>
+                  Поточна: <strong class="text-gray-800">{profile.value.weightKg} кг</strong>
+                </span>
+              )}
+              {profile.value?.targetWeightKg != null && (
+                <span>
+                  Ціль: <strong class="text-gray-800">{profile.value.targetWeightKg} кг</strong>
+                </span>
+              )}
+            </div>
+          </div>
+          <div class="mt-4">
+            <WeightChart points={weightHistory.value} />
+          </div>
+        </div>
+
+       
 
         {/* Зведені показники за період */}
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">

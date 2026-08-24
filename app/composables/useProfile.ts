@@ -16,6 +16,9 @@ export interface ProfileForm {
   heightCm: number | null
   weightKg: number | null
   targetWeightKg: number | null
+  chestCm: number | null
+  waistCm: number | null
+  hipsCm: number | null
   activityLevel: ActivityLevel
   goal: Goal
 }

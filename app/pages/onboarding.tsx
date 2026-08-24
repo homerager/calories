@@ -34,6 +34,9 @@ export default defineComponent({
       heightCm: null,
       weightKg: null,
       targetWeightKg: null,
+      chestCm: null,
+      waistCm: null,
+      hipsCm: null,
       activityLevel: 'SEDENTARY',
       goal: 'MAINTAIN',
     })
@@ -62,6 +65,9 @@ export default defineComponent({
           heightCm: form.heightCm,
           weightKg: form.weightKg,
           targetWeightKg: form.targetWeightKg,
+          chestCm: form.chestCm,
+          waistCm: form.waistCm,
+          hipsCm: form.hipsCm,
           activityLevel: form.activityLevel,
           goal: form.goal,
         })

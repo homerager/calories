@@ -39,6 +39,7 @@ interface DayPoint {
   fat: number
   carb: number
   burned: number
+  waterMl: number
 }
 
 interface Macros {
@@ -60,7 +61,7 @@ export default defineEventHandler(async (event) => {
   fromStart.setDate(fromStart.getDate() - (totalDays - 1))
   const rangeEnd = nextDay(todayStart)
 
-  const [aggregates, profile, exerciseLogs, weightLogs] = await Promise.all([
+  const [aggregates, profile, exerciseLogs, weightLogs, waterLogs] = await Promise.all([
     prisma.dailyAggregate.findMany({
       where: { userId: user.id, date: { gte: fromStart, lt: rangeEnd } },
       orderBy: { date: 'asc' },
@@ -87,6 +88,10 @@ export default defineEventHandler(async (event) => {
       orderBy: { measuredAt: 'asc' },
       select: { weightEnc: true, measuredAt: true },
     }),
+    prisma.waterLog.findMany({
+      where: { userId: user.id, measuredAt: { gte: fromStart, lt: rangeEnd } },
+      select: { volumeMl: true, measuredAt: true },
+    }),
   ])
 
   // Мапа за ключем доби для швидкого заповнення нулями.
@@ -98,6 +103,13 @@ export default defineEventHandler(async (event) => {
   for (const log of exerciseLogs) {
     const key = dateKey(log.performedAt)
     burnedByDate.set(key, (burnedByDate.get(key) ?? 0) + (log.kcalBurned ?? 0))
+  }
+
+  // Вода теж бакетимо по добі (measuredAt — timestamp).
+  const waterByDate = new Map<string, number>()
+  for (const log of waterLogs) {
+    const key = dateKey(log.measuredAt)
+    waterByDate.set(key, (waterByDate.get(key) ?? 0) + log.volumeMl)
   }
 
   const days: DayPoint[] = []
@@ -112,6 +124,7 @@ export default defineEventHandler(async (event) => {
       fat: agg?.totalFat ?? 0,
       carb: agg?.totalCarb ?? 0,
       burned: burnedByDate.get(key) ?? 0,
+      waterMl: waterByDate.get(key) ?? 0,
     })
     cursor.setDate(cursor.getDate() + 1)
   }
