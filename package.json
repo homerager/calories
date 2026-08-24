@@ -22,10 +22,12 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "chart.js": "^4.5.1",
     "nuxt": "^4.0.0",
     "nuxt-auth-utils": "^0.5.30",
     "pg": "^8.23.0",
     "vue": "^3.5.0",
+    "vue-chartjs": "^5.3.4",
     "vue-router": "^4.5.0",
     "web-push": "^3.6.7",
     "zod": "^4.4.3"

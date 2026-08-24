@@ -1,12 +1,11 @@
 import { defineComponent, computed, type PropType } from 'vue'
+import { Bar } from 'vue-chartjs'
+import type { ChartData, ChartOptions } from 'chart.js'
+import '~/utils/chartSetup'
 import type { StatsDay } from '../composables/useStats'
 
-// Легкий SVG-графік добових калорій за період (без зовнішніх залежностей).
-// Стовпчики — калорії за день; пунктирна лінія — цільова норма.
-
-const VIEW_W = 640
-const VIEW_H = 240
-const PAD = { top: 16, right: 16, bottom: 28, left: 44 }
+// Інтерактивний графік добових калорій на Chart.js: стовпчики — калорії за день
+// (червоні — перевищення норми), пунктирна лінія — цільова норма.
 
 function formatDate(iso: string): string {
   const d = new Date(`${iso}T12:00:00.000Z`)
@@ -26,125 +25,80 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const plotW = VIEW_W - PAD.left - PAD.right
-    const plotH = VIEW_H - PAD.top - PAD.bottom
+    const chartData = computed(() => {
+      const norm = props.norm
+      const datasets: unknown[] = [
+        {
+          type: 'bar' as const,
+          label: 'Калорії',
+          data: props.days.map((d) => Math.round(d.kcal)),
+          backgroundColor: props.days.map((d) =>
+            norm != null && norm > 0 && d.kcal > norm ? '#f87171' : '#3a8d3a',
+          ),
+          borderRadius: 4,
+          maxBarThickness: 40,
+        },
+      ]
+      if (norm != null && norm > 0) {
+        datasets.push({
+          type: 'line' as const,
+          label: 'Норма',
+          data: props.days.map(() => norm),
+          borderColor: '#f59e0b',
+          borderDash: [5, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        })
+      }
 
-    const model = computed(() => {
-      const days = props.days
-      if (days.length === 0) return null
-
-      const maxKcal = Math.max(...days.map((d) => d.kcal), props.norm ?? 0, 1)
-      // Верхня межа з невеликим запасом, щоб стовпчик/лінія не липли до краю.
-      const top = maxKcal * 1.1
-      const scaleY = (v: number) => PAD.top + (1 - v / top) * plotH
-
-      const slot = plotW / days.length
-      const barW = Math.max(2, Math.min(48, slot * 0.6))
-
-      const bars = days.map((d, i) => {
-        const cx = PAD.left + slot * i + slot / 2
-        const y = scaleY(d.kcal)
-        const h = PAD.top + plotH - y
-        const over = props.norm != null && props.norm > 0 && d.kcal > props.norm
-        return { day: d, cx, x: cx - barW / 2, y, h, over, index: i }
-      })
-
-      const normY = props.norm != null && props.norm > 0 ? scaleY(props.norm) : null
-
-      return { bars, barW, normY, top }
+      return {
+        labels: props.days.map((d) => formatDate(d.date)),
+        datasets,
+      } as ChartData<'bar', number[], string>
     })
 
+    const chartOptions = computed<ChartOptions<'bar'>>(() => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: props.norm != null && props.norm > 0,
+          position: 'top',
+          labels: { boxWidth: 12, font: { size: 11 } },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} ккал`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: (v) => `${v}` },
+          grid: { color: '#f1f5f9' },
+        },
+        x: {
+          grid: { display: false },
+        },
+      },
+    }))
+
     return () => {
-      const m = model.value
-      if (!m) {
+      if (props.days.length === 0) {
         return (
-          <div class="flex h-48 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
+          <div class="flex h-64 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
             Ще немає даних за цей період.
           </div>
         )
       }
 
-      const showEveryLabel = m.bars.length <= 10
-      const midValue = m.top / 2
-
       return (
-        <svg
-          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-          class="h-auto w-full"
-          role="img"
-          aria-label="Графік добових калорій"
-        >
-          {/* Сітка + підписи калорій */}
-          {[m.top, midValue, 0].map((v, i) => {
-            const y = PAD.top + (plotH / 2) * i
-            return (
-              <g key={`grid-${i}`}>
-                <line
-                  x1={PAD.left}
-                  y1={y}
-                  x2={VIEW_W - PAD.right}
-                  y2={y}
-                  stroke="#f1f5f9"
-                  stroke-width="1"
-                />
-                <text x={PAD.left - 6} y={y + 4} text-anchor="end" class="fill-gray-400 text-[11px]">
-                  {Math.round(v)}
-                </text>
-              </g>
-            )
-          })}
-
-          {/* Стовпчики */}
-          {m.bars.map((b) => (
-            <g key={b.day.date}>
-              <rect
-                x={b.x}
-                y={b.y}
-                width={m.barW}
-                height={Math.max(0, b.h)}
-                rx="3"
-                class={b.over ? 'fill-red-400' : 'fill-brand-500'}
-              >
-                <title>
-                  {formatDate(b.day.date)}: {Math.round(b.day.kcal)} ккал
-                </title>
-              </rect>
-              {(showEveryLabel || b.index % Math.ceil(m.bars.length / 8) === 0) && (
-                <text
-                  x={b.cx}
-                  y={VIEW_H - 8}
-                  text-anchor="middle"
-                  class="fill-gray-400 text-[10px]"
-                >
-                  {formatDate(b.day.date)}
-                </text>
-              )}
-            </g>
-          ))}
-
-          {/* Лінія норми */}
-          {m.normY != null && (
-            <g>
-              <line
-                x1={PAD.left}
-                y1={m.normY}
-                x2={VIEW_W - PAD.right}
-                y2={m.normY}
-                stroke="#f59e0b"
-                stroke-width="1.5"
-                stroke-dasharray="5 4"
-              />
-              <text
-                x={VIEW_W - PAD.right}
-                y={m.normY - 4}
-                text-anchor="end"
-                class="fill-amber-500 text-[10px]"
-              >
-                норма {Math.round(props.norm!)}
-              </text>
-            </g>
-          )}
-        </svg>
+        <div class="h-64">
+          <Bar data={chartData.value} options={chartOptions.value} />
+        </div>
       )
     }
   },
