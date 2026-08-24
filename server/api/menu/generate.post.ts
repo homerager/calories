@@ -2,9 +2,11 @@ import { prisma } from '../../utils/prisma'
 import { normalizeFoodKey } from '../../utils/crypto'
 import { startOfDay } from '../../utils/aggregates'
 import { getUserDishes, pickRandom } from '../../utils/myDishes'
+import { toPer100 } from '../../utils/food'
 import { menuGenerateSchema } from '../../utils/menuSchemas'
 import { toMenuPlanResponse } from '../../utils/menuResponse'
 import { AiProviderError, generateWeeklyMenu, statusForAiError } from '../../ai'
+import { scheduleEnsureEmbedding } from '../../ai/embeddings'
 import type { Goal } from '../../../prisma/generated/client/enums'
 
 // Генерація меню на тиждень: норми профілю + знайомі страви користувача → AI → збереження.
@@ -83,23 +85,43 @@ export default defineEventHandler(async (event) => {
     })
     const idByKey = new Map(existing.map((f) => [f.normalizedKey, f.id]))
 
+    // Нові страви (без збігу в довіднику) — заводимо у FoodItem, щоб вони
+    // одразу стали доступні для пошуку (лексика одразу, семантика — після ембедингу).
+    const newFoodItemIds: string[] = []
+
     const plan = await prisma.$transaction(async (tx) => {
       const createdPlan = await tx.menuPlan.create({ data: { userId: user.id, startDate } })
 
-      const itemsData = result.data.days.flatMap((day) =>
-        day.meals.map((meal) => ({
-          planId: createdPlan.id,
-          dayIndex: day.dayIndex,
-          slot: meal.slot,
-          name: meal.name,
-          portionGrams: meal.portionGrams,
-          kcal: meal.kcal,
-          protein: meal.protein,
-          fat: meal.fat,
-          carb: meal.carb,
-          foodItemId: idByKey.get(normalizeFoodKey(meal.name)) ?? null,
-        })),
-      )
+      const itemsData = []
+      for (const day of result.data.days) {
+        for (const meal of day.meals) {
+          const normalizedKey = normalizeFoodKey(meal.name)
+          let foodItemId = idByKey.get(normalizedKey) ?? null
+          if (!foodItemId) {
+            const food = await tx.foodItem.upsert({
+              where: { normalizedKey },
+              update: {},
+              create: { name: meal.name, normalizedKey, ...toPer100(meal), source: 'AI' },
+              select: { id: true },
+            })
+            foodItemId = food.id
+            idByKey.set(normalizedKey, foodItemId)
+            newFoodItemIds.push(foodItemId)
+          }
+          itemsData.push({
+            planId: createdPlan.id,
+            dayIndex: day.dayIndex,
+            slot: meal.slot,
+            name: meal.name,
+            portionGrams: meal.portionGrams,
+            kcal: meal.kcal,
+            protein: meal.protein,
+            fat: meal.fat,
+            carb: meal.carb,
+            foodItemId,
+          })
+        }
+      }
       await tx.menuItem.createMany({ data: itemsData })
 
       return tx.menuPlan.findUniqueOrThrow({
@@ -107,6 +129,9 @@ export default defineEventHandler(async (event) => {
         include: { items: { orderBy: [{ dayIndex: 'asc' }] } },
       })
     })
+
+    // Після коміту: не блокуємо відповідь на HTTP embeddings.
+    for (const id of newFoodItemIds) scheduleEnsureEmbedding(id, user.id)
 
     return {
       plan: toMenuPlanResponse(plan),

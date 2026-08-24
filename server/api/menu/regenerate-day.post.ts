@@ -1,9 +1,11 @@
 import { prisma } from '../../utils/prisma'
 import { normalizeFoodKey } from '../../utils/crypto'
 import { getUserDishes, pickRandom } from '../../utils/myDishes'
+import { toPer100 } from '../../utils/food'
 import { menuRegenerateDaySchema } from '../../utils/menuSchemas'
 import { toMenuPlanResponse } from '../../utils/menuResponse'
 import { AiProviderError, generateMenuDay, statusForAiError } from '../../ai'
+import { scheduleEnsureEmbedding } from '../../ai/embeddings'
 import type { Goal } from '../../../prisma/generated/client/enums'
 
 // Перегенерація меню для одного дня: AI складає новий день з урахуванням норм
@@ -94,12 +96,30 @@ export default defineEventHandler(async (event) => {
     })
     const idByKey = new Map(existing.map((f) => [f.normalizedKey, f.id]))
 
+    // Нові страви (без збігу в довіднику) — заводимо у FoodItem, щоб вони
+    // одразу стали доступні для пошуку (лексика одразу, семантика — після ембедингу).
+    const newFoodItemIds: string[] = []
+
     const updated = await prisma.$transaction(async (tx) => {
       // Заміщуємо лише позиції цього дня.
       await tx.menuItem.deleteMany({ where: { planId: plan.id, dayIndex: data.dayIndex } })
 
-      await tx.menuItem.createMany({
-        data: result.data.meals.map((meal) => ({
+      const itemsData = []
+      for (const meal of result.data.meals) {
+        const normalizedKey = normalizeFoodKey(meal.name)
+        let foodItemId = idByKey.get(normalizedKey) ?? null
+        if (!foodItemId) {
+          const food = await tx.foodItem.upsert({
+            where: { normalizedKey },
+            update: {},
+            create: { name: meal.name, normalizedKey, ...toPer100(meal), source: 'AI' },
+            select: { id: true },
+          })
+          foodItemId = food.id
+          idByKey.set(normalizedKey, foodItemId)
+          newFoodItemIds.push(foodItemId)
+        }
+        itemsData.push({
           planId: plan.id,
           dayIndex: data.dayIndex,
           slot: meal.slot,
@@ -109,9 +129,10 @@ export default defineEventHandler(async (event) => {
           protein: meal.protein,
           fat: meal.fat,
           carb: meal.carb,
-          foodItemId: idByKey.get(normalizeFoodKey(meal.name)) ?? null,
-        })),
-      })
+          foodItemId,
+        })
+      }
+      await tx.menuItem.createMany({ data: itemsData })
 
       // Оновлюємо updatedAt плану.
       await tx.menuPlan.update({ where: { id: plan.id }, data: { updatedAt: new Date() } })
@@ -121,6 +142,9 @@ export default defineEventHandler(async (event) => {
         include: { items: { orderBy: [{ dayIndex: 'asc' }] } },
       })
     })
+
+    // Після коміту: не блокуємо відповідь на HTTP embeddings.
+    for (const id of newFoodItemIds) scheduleEnsureEmbedding(id, user.id)
 
     return {
       plan: toMenuPlanResponse(updated),
