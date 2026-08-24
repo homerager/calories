@@ -15,6 +15,7 @@ export interface ProfileForm {
   age: number | null
   heightCm: number | null
   weightKg: number | null
+  targetWeightKg: number | null
   activityLevel: ActivityLevel
   goal: Goal
 }

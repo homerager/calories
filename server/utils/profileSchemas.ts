@@ -25,6 +25,7 @@ export const profileUpdateSchema = z.object({
   age: z.number().int().min(0, 'Некоректний вік').max(120, 'Некоректний вік').nullish(),
   heightCm: z.number().min(50, 'Некоректний зріст').max(272, 'Некоректний зріст').nullish(),
   weightKg: z.number().min(20, 'Некоректна вага').max(500, 'Некоректна вага').nullish(),
+  targetWeightKg: z.number().min(20, 'Некоректна цільова вага').max(500, 'Некоректна цільова вага').nullish(),
   activityLevel: activityLevelSchema,
   goal: goalSchema,
 })

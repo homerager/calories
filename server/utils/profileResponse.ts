@@ -14,6 +14,7 @@ export interface ProfileRecord {
   goal: Goal
   heightEnc: string | null
   weightEnc: string | null
+  targetWeightEnc: string | null
   dailyKcal: number | null
   proteinGrams: number | null
   fatGrams: number | null
@@ -29,6 +30,7 @@ export interface ProfileResponse {
   goal: Goal
   heightCm: number | null
   weightKg: number | null
+  targetWeightKg: number | null
   dailyKcal: number | null
   proteinGrams: number | null
   fatGrams: number | null
@@ -57,6 +59,7 @@ export function toProfileResponse(profile: ProfileRecord): ProfileResponse {
     goal: profile.goal,
     heightCm: decryptNumber(profile.heightEnc),
     weightKg: decryptNumber(profile.weightEnc),
+    targetWeightKg: decryptNumber(profile.targetWeightEnc),
     dailyKcal: profile.dailyKcal,
     proteinGrams: profile.proteinGrams,
     fatGrams: profile.fatGrams,

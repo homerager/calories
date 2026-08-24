@@ -1,45 +1,9 @@
 import { defineComponent, reactive, ref, watch, computed } from 'vue'
 import { WeightChart } from '#components'
-import {
-  useProfile,
-  type ProfileForm,
-  type Sex,
-  type ActivityLevel,
-  type Goal,
-} from '~/composables/useProfile'
+import { useProfile, type ProfileForm } from '~/composables/useProfile'
 import { useToast } from '~/composables/useToast'
 import { btnPrimaryClass, inputClass, labelClass } from '~/utils/ui'
-
-const SEX_OPTIONS: { value: Sex; label: string }[] = [
-  { value: 'MALE', label: 'Чоловіча' },
-  { value: 'FEMALE', label: 'Жіноча' },
-  { value: 'OTHER', label: 'Інша' },
-]
-
-const ACTIVITY_OPTIONS: { value: ActivityLevel; label: string }[] = [
-  { value: 'SEDENTARY', label: 'Сидячий спосіб життя' },
-  { value: 'LIGHT', label: 'Легка активність (1–3 трен./тиж.)' },
-  { value: 'MODERATE', label: 'Помірна (3–5 трен./тиж.)' },
-  { value: 'ACTIVE', label: 'Висока (6–7 трен./тиж.)' },
-  { value: 'VERY_ACTIVE', label: 'Дуже висока / фізична робота' },
-]
-
-const GOAL_OPTIONS: { value: Goal; label: string }[] = [
-  { value: 'LOSE', label: 'Схуднення' },
-  { value: 'MAINTAIN', label: 'Підтримка ваги' },
-  { value: 'GAIN', label: 'Набір маси' },
-]
-
-function parseNum(value: string): number | null {
-  const trimmed = value.trim()
-  if (trimmed === '') return null
-  const n = Number(trimmed.replace(',', '.'))
-  return Number.isFinite(n) ? n : null
-}
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { SEX_OPTIONS, ACTIVITY_OPTIONS, GOAL_OPTIONS, parseNum } from '~/utils/profileOptions'
 
 export default defineComponent({
   name: 'ProfilePage',
@@ -56,6 +20,7 @@ export default defineComponent({
       age: null,
       heightCm: null,
       weightKg: null,
+      targetWeightKg: null,
       activityLevel: 'SEDENTARY',
       goal: 'MAINTAIN',
     })
@@ -70,6 +35,7 @@ export default defineComponent({
         form.age = p.age
         form.heightCm = p.heightCm
         form.weightKg = p.weightKg
+        form.targetWeightKg = p.targetWeightKg
         form.activityLevel = p.activityLevel
         form.goal = p.goal
       },
@@ -93,6 +59,7 @@ export default defineComponent({
           age: form.age,
           heightCm: form.heightCm,
           weightKg: form.weightKg,
+          targetWeightKg: form.targetWeightKg,
           activityLevel: form.activityLevel,
           goal: form.goal,
         })
@@ -128,6 +95,13 @@ export default defineComponent({
     }
 
     const reversedHistory = computed(() => [...weightHistory.value].reverse())
+
+    const weightToGoal = computed(() => {
+      const current = profile.value?.weightKg
+      const target = profile.value?.targetWeightKg
+      if (current == null || target == null) return null
+      return Math.round((current - target) * 10) / 10
+    })
 
     function macroCard(label: string, value: number | null | undefined, unit: string, tint: string) {
       return (
@@ -242,6 +216,21 @@ export default defineComponent({
             </div>
 
             <div>
+              <label class={labelClass} for="targetWeight">Цільова вага, кг</label>
+              <input
+                id="targetWeight"
+                type="number"
+                min={20}
+                max={500}
+                step="0.1"
+                value={form.targetWeightKg ?? ''}
+                onInput={(e) => (form.targetWeightKg = parseNum((e.target as HTMLInputElement).value))}
+                class={inputClass}
+                placeholder="напр. 65"
+              />
+            </div>
+
+            <div>
               <label class={labelClass} for="activity">Рівень активності</label>
               <select
                 id="activity"
@@ -282,13 +271,31 @@ export default defineComponent({
 
         {/* Історія зважувань */}
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
-          <div class="flex items-baseline justify-between">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h2 class="text-lg font-semibold text-gray-900">Історія ваги</h2>
-            {profile.value?.weightKg != null && (
-              <span class="text-sm text-gray-500">
-                Поточна: <strong class="text-gray-800">{profile.value.weightKg} кг</strong>
-              </span>
-            )}
+            <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-500">
+              {profile.value?.weightKg != null && (
+                <span>
+                  Поточна: <strong class="text-gray-800">{profile.value.weightKg} кг</strong>
+                </span>
+              )}
+              {profile.value?.targetWeightKg != null && (
+                <span>
+                  Ціль: <strong class="text-gray-800">{profile.value.targetWeightKg} кг</strong>
+                </span>
+              )}
+              {weightToGoal.value != null && weightToGoal.value !== 0 && (
+                <span>
+                  До цілі:{' '}
+                  <strong class="text-brand-700">
+                    {Math.abs(weightToGoal.value)} кг {weightToGoal.value > 0 ? 'зменшити' : 'набрати'}
+                  </strong>
+                </span>
+              )}
+              {weightToGoal.value === 0 && (
+                <span class="font-medium text-brand-700">Ціль досягнута</span>
+              )}
+            </div>
           </div>
 
           <div class="mt-4">

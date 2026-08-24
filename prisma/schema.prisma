@@ -128,8 +128,9 @@ model Profile {
   goal          Goal          @default(MAINTAIN)
 
   // Чутливі виміри — шифруються at rest (AES-256-GCM), формат iv:tag:ciphertext.
-  heightEnc String? // зріст, см
-  weightEnc String? // поточна вага, кг
+  heightEnc       String? // зріст, см
+  weightEnc       String? // поточна вага, кг
+  targetWeightEnc String? // цільова вага, кг
 
   // Розраховані добові норми (Міффлін-Сан Жеор → TDEE → корекція за ціллю).
   dailyKcal    Int?

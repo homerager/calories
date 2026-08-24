@@ -27,7 +27,7 @@ export default defineOAuthGoogleEventHandler({
       loggedInAt: Date.now(),
     })
 
-    return sendRedirect(event, '/')
+    return sendRedirect(event, dbUser.isNew ? '/onboarding' : '/')
   },
   onError(event, error) {
     console.error('Google OAuth error:', error)

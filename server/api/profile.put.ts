@@ -45,6 +45,7 @@ export default defineEventHandler(async (event) => {
 
   const heightEnc = data.heightCm != null ? encrypt(String(data.heightCm)) : null
   const weightEnc = data.weightKg != null ? encrypt(String(data.weightKg)) : null
+  const targetWeightEnc = data.targetWeightKg != null ? encrypt(String(data.targetWeightKg)) : null
 
   const persisted = {
     name: data.name ?? null,
@@ -55,6 +56,7 @@ export default defineEventHandler(async (event) => {
     goal: data.goal,
     heightEnc,
     weightEnc,
+    targetWeightEnc,
     dailyKcal: norms?.dailyKcal ?? null,
     proteinGrams: norms?.proteinGrams ?? null,
     fatGrams: norms?.fatGrams ?? null,

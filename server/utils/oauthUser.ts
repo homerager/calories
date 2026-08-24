@@ -6,6 +6,13 @@ export interface OAuthIdentity {
   email: string
 }
 
+export interface OAuthUserResult {
+  id: string
+  email: string
+  // true, якщо користувача щойно створено цим викликом (перший вхід).
+  isNew: boolean
+}
+
 /**
  * Знаходить або створює користувача за OAuth-ідентичністю.
  * Логіка:
@@ -13,7 +20,7 @@ export interface OAuthIdentity {
  *  2) Інакше, якщо є користувач із таким email — привʼязуємо провайдера до нього.
  *  3) Інакше створюємо нового користувача (без пароля) разом зі звʼязкою.
  */
-export async function findOrCreateOAuthUser(identity: OAuthIdentity): Promise<{ id: string; email: string }> {
+export async function findOrCreateOAuthUser(identity: OAuthIdentity): Promise<OAuthUserResult> {
   const { provider, providerUserId } = identity
   const email = identity.email.trim().toLowerCase()
 
@@ -21,7 +28,7 @@ export async function findOrCreateOAuthUser(identity: OAuthIdentity): Promise<{ 
     where: { provider_providerUserId: { provider, providerUserId } },
     select: { user: { select: { id: true, email: true } } },
   })
-  if (linked) return linked.user
+  if (linked) return { ...linked.user, isNew: false }
 
   const existing = await prisma.user.findUnique({
     where: { email },
@@ -32,7 +39,7 @@ export async function findOrCreateOAuthUser(identity: OAuthIdentity): Promise<{ 
     await prisma.oAuthAccount.create({
       data: { userId: existing.id, provider, providerUserId },
     })
-    return existing
+    return { ...existing, isNew: false }
   }
 
   const created = await prisma.user.create({
@@ -42,5 +49,5 @@ export async function findOrCreateOAuthUser(identity: OAuthIdentity): Promise<{ 
     },
     select: { id: true, email: true },
   })
-  return created
+  return { ...created, isNew: true }
 }

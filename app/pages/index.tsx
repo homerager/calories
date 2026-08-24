@@ -3,6 +3,7 @@ import { EmptyState, NuxtLink } from '#components'
 import { useDiary, type MealSlot } from '~/composables/useDiary'
 import { useExercise } from '~/composables/useExercise'
 import { useWater } from '~/composables/useWater'
+import { useProfile } from '~/composables/useProfile'
 import { useToast } from '~/composables/useToast'
 import { btnPrimaryClass, btnSecondaryClass } from '~/utils/ui'
 
@@ -32,9 +33,12 @@ export default defineComponent({
     const { meals, totals, norms } = useDiary()
     const { totalKcalBurned } = useExercise()
     const { totalMl, goalMl, addWater } = useWater()
+    const { profile } = useProfile()
     const toast = useToast()
 
-    const greetingName = computed(() => user.value?.email?.split('@')[0] ?? '')
+    const greetingName = computed(
+      () => profile.value?.name?.trim() || user.value?.email?.split('@')[0] || '',
+    )
 
     const netKcal = computed(() => Math.round(totals.value.totalKcal - totalKcalBurned.value))
     const kcalNorm = computed(() => norms.value.dailyKcal)

@@ -35,7 +35,7 @@ export default defineComponent({
           body: { email: email.value, password: password.value },
         })
         await refreshSession()
-        await navigateTo('/')
+        await navigateTo('/onboarding')
       } catch (err: unknown) {
         error.value = extractErrorMessage(err) ?? 'Не вдалося зареєструватися'
       } finally {
