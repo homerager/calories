@@ -76,26 +76,34 @@ async function main() {
 
   for (const food of foods) {
     const normalizedKey = normalizeKey(food.name)
-    await prisma.foodItem.upsert({
-      where: { normalizedKey },
-      update: {
-        name: food.name,
-        kcalPer100: food.kcalPer100,
-        proteinPer100: food.proteinPer100,
-        fatPer100: food.fatPer100,
-        carbPer100: food.carbPer100,
-        source: 'MANUAL',
-      },
-      create: {
-        name: food.name,
-        normalizedKey,
-        kcalPer100: food.kcalPer100,
-        proteinPer100: food.proteinPer100,
-        fatPer100: food.fatPer100,
-        carbPer100: food.carbPer100,
-        source: 'MANUAL',
-      },
+    const existing = await prisma.foodItem.findFirst({
+      where: { normalizedKey, ownerUserId: null },
     })
+    if (existing) {
+      await prisma.foodItem.update({
+        where: { id: existing.id },
+        data: {
+          name: food.name,
+          kcalPer100: food.kcalPer100,
+          proteinPer100: food.proteinPer100,
+          fatPer100: food.fatPer100,
+          carbPer100: food.carbPer100,
+          source: 'MANUAL',
+        },
+      })
+    } else {
+      await prisma.foodItem.create({
+        data: {
+          name: food.name,
+          normalizedKey,
+          kcalPer100: food.kcalPer100,
+          proteinPer100: food.proteinPer100,
+          fatPer100: food.fatPer100,
+          carbPer100: food.carbPer100,
+          source: 'MANUAL',
+        },
+      })
+    }
   }
 
   console.log('Seed completed.')

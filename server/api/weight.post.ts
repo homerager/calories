@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma'
 import { encrypt, decrypt } from '../utils/crypto'
 import { weightLogSchema } from '../utils/profileSchemas'
 import { calcNorms, type NormsResult } from '../utils/mifflin'
+import { instantForDay } from '../utils/day'
 
 // Додає запис зважування, оновлює поточну вагу у профілі та (за наявності даних) перераховує норми.
 export default defineEventHandler(async (event) => {
@@ -24,9 +25,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { weightKg } = body.data
-  const measuredAt = body.data.measuredAt
-    ? new Date(`${body.data.measuredAt}T12:00:00.000Z`)
-    : new Date()
+  const measuredAt = instantForDay(body.data.measuredAt)
 
   const entry = await prisma.$transaction(async (tx) => {
     const log = await tx.weightLog.create({

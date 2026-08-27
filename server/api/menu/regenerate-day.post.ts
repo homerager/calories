@@ -6,6 +6,7 @@ import { menuRegenerateDaySchema } from '../../utils/menuSchemas'
 import { toMenuPlanResponse } from '../../utils/menuResponse'
 import { AiProviderError, generateMenuDay, statusForAiError } from '../../ai'
 import { scheduleEnsureEmbedding } from '../../ai/embeddings'
+import { mapAccessibleFoodsByKeys, resolveFoodItemForMeal } from '../../utils/foodItem'
 import type { Goal } from '../../../prisma/generated/client/enums'
 
 // Перегенерація меню для одного дня: AI складає новий день з урахуванням норм
@@ -90,18 +91,11 @@ export default defineEventHandler(async (event) => {
 
     // Best-effort привʼязка до довідника за нормалізованим ключем.
     const keys = new Set(result.data.meals.map((m) => normalizeFoodKey(m.name)))
-    const existing = await prisma.foodItem.findMany({
-      where: { normalizedKey: { in: [...keys] } },
-      select: { id: true, normalizedKey: true },
-    })
-    const idByKey = new Map(existing.map((f) => [f.normalizedKey, f.id]))
+    const idByKey = await mapAccessibleFoodsByKeys(prisma, user.id, [...keys])
 
-    // Нові страви (без збігу в довіднику) — заводимо у FoodItem, щоб вони
-    // одразу стали доступні для пошуку (лексика одразу, семантика — після ембедингу).
     const newFoodItemIds: string[] = []
 
     const updated = await prisma.$transaction(async (tx) => {
-      // Заміщуємо лише позиції цього дня.
       await tx.menuItem.deleteMany({ where: { planId: plan.id, dayIndex: data.dayIndex } })
 
       const itemsData = []
@@ -109,13 +103,14 @@ export default defineEventHandler(async (event) => {
         const normalizedKey = normalizeFoodKey(meal.name)
         let foodItemId = idByKey.get(normalizedKey) ?? null
         if (!foodItemId) {
-          const food = await tx.foodItem.upsert({
-            where: { normalizedKey },
-            update: {},
-            create: { name: meal.name, normalizedKey, ...toPer100(meal), source: 'AI' },
-            select: { id: true },
-          })
-          foodItemId = food.id
+          foodItemId = await resolveFoodItemForMeal(
+            tx,
+            user.id,
+            meal.name,
+            toPer100(meal),
+            'AI_TEXT',
+            null,
+          )
           idByKey.set(normalizedKey, foodItemId)
           newFoodItemIds.push(foodItemId)
         }

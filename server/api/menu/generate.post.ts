@@ -1,10 +1,11 @@
 import { prisma } from '../../utils/prisma'
 import { normalizeFoodKey } from '../../utils/crypto'
-import { startOfDay } from '../../utils/aggregates'
+import { startOfWeekFromKey, todayKey } from '../../utils/day'
 import { getUserDishes, pickRandom } from '../../utils/myDishes'
 import { toPer100 } from '../../utils/food'
 import { menuGenerateSchema } from '../../utils/menuSchemas'
 import { toMenuPlanResponse } from '../../utils/menuResponse'
+import { mapAccessibleFoodsByKeys, resolveFoodItemForMeal } from '../../utils/foodItem'
 import { AiProviderError, generateWeeklyMenu, statusForAiError } from '../../ai'
 import { scheduleEnsureEmbedding } from '../../ai/embeddings'
 import type { Goal } from '../../../prisma/generated/client/enums'
@@ -15,14 +16,6 @@ const GOAL_LABELS: Record<Goal, string> = {
   LOSE: 'схуднення',
   MAINTAIN: 'підтримка ваги',
   GAIN: 'набір маси',
-}
-
-/** Понеділок тижня для заданої дати (нормалізований до початку доби). */
-function startOfWeek(date: Date): Date {
-  const d = startOfDay(date)
-  const mondayOffset = (d.getDay() + 6) % 7 // Пн = 0
-  d.setDate(d.getDate() - mondayOffset)
-  return d
 }
 
 export default defineEventHandler(async (event) => {
@@ -45,8 +38,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const data = body.data
-  const baseDate = data.startDate ? new Date(`${data.startDate}T12:00:00.000Z`) : new Date()
-  const startDate = startOfWeek(baseDate)
+  const startDate = startOfWeekFromKey(data.startDate ? data.startDate : todayKey())
 
   const [profile, candidates] = await Promise.all([
     prisma.profile.findUnique({
@@ -79,14 +71,9 @@ export default defineEventHandler(async (event) => {
     for (const day of result.data.days) {
       for (const meal of day.meals) keys.set(normalizeFoodKey(meal.name), meal.name)
     }
-    const existing = await prisma.foodItem.findMany({
-      where: { normalizedKey: { in: [...keys.keys()] } },
-      select: { id: true, normalizedKey: true },
-    })
-    const idByKey = new Map(existing.map((f) => [f.normalizedKey, f.id]))
+    const idByKey = await mapAccessibleFoodsByKeys(prisma, user.id, [...keys.keys()])
 
-    // Нові страви (без збігу в довіднику) — заводимо у FoodItem, щоб вони
-    // одразу стали доступні для пошуку (лексика одразу, семантика — після ембедингу).
+    // Нові страви (без збігу в довіднику) — приватні FoodItem користувача.
     const newFoodItemIds: string[] = []
 
     const plan = await prisma.$transaction(async (tx) => {
@@ -98,13 +85,14 @@ export default defineEventHandler(async (event) => {
           const normalizedKey = normalizeFoodKey(meal.name)
           let foodItemId = idByKey.get(normalizedKey) ?? null
           if (!foodItemId) {
-            const food = await tx.foodItem.upsert({
-              where: { normalizedKey },
-              update: {},
-              create: { name: meal.name, normalizedKey, ...toPer100(meal), source: 'AI' },
-              select: { id: true },
-            })
-            foodItemId = food.id
+            foodItemId = await resolveFoodItemForMeal(
+              tx,
+              user.id,
+              meal.name,
+              toPer100(meal),
+              'AI_TEXT',
+              null,
+            )
             idByKey.set(normalizedKey, foodItemId)
             newFoodItemIds.push(foodItemId)
           }

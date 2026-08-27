@@ -1,6 +1,6 @@
 import { waterCreateSchema } from '../utils/waterSchemas'
 import { prisma } from '../utils/prisma'
-import { nextDay, startOfDay } from '../utils/aggregates'
+import { calendarKeyInZone, instantForDay, zonedDayBounds } from '../utils/day'
 
 // Додає запис випитої води (ручне введення) → WaterLog.
 export default defineEventHandler(async (event) => {
@@ -23,8 +23,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const data = body.data
-  // Дату фіксуємо на полудень UTC, щоб нормалізація до доби була стабільною.
-  const measuredAt = data.date ? new Date(`${data.date}T12:00:00.000Z`) : new Date()
+  const measuredAt = instantForDay(data.date)
 
   const entry = await prisma.waterLog.create({
     data: {
@@ -40,10 +39,10 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  const dayStart = startOfDay(measuredAt)
-  const dayEnd = nextDay(measuredAt)
+  const key = calendarKeyInZone(measuredAt)
+  const { start, end } = zonedDayBounds(key)
   const sums = await prisma.waterLog.aggregate({
-    where: { userId: user.id, measuredAt: { gte: dayStart, lt: dayEnd } },
+    where: { userId: user.id, measuredAt: { gte: start, lt: end } },
     _sum: { volumeMl: true },
   })
 

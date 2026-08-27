@@ -1,6 +1,7 @@
 import { getRouterParam } from 'h3'
 import { prisma } from '../../utils/prisma'
-import { getDailyTotals, recomputeDailyAggregate, startOfDay } from '../../utils/aggregates'
+import { getDailyTotals, recomputeDailyAggregate } from '../../utils/aggregates'
+import { asDayStart, dayKeyFromStored } from '../../utils/day'
 
 // Видаляє запис прийому їжі користувача та перераховує денний агрегат.
 export default defineEventHandler(async (event) => {
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Not Found', message: 'Запис не знайдено' })
   }
 
-  const dayStart = startOfDay(entry.date)
+  const dayStart = asDayStart(entry.date)
 
   await prisma.$transaction(async (tx) => {
     await tx.mealEntry.delete({ where: { id } })
@@ -29,5 +30,5 @@ export default defineEventHandler(async (event) => {
   })
 
   const totals = await getDailyTotals(user.id, dayStart)
-  return { ok: true, date: dayStart.toISOString().slice(0, 10), totals }
+  return { ok: true, date: dayKeyFromStored(dayStart), totals }
 })

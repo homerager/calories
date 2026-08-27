@@ -1,6 +1,6 @@
 import { exerciseCreateSchema } from '../utils/exerciseSchemas'
 import { prisma } from '../utils/prisma'
-import { nextDay, startOfDay } from '../utils/aggregates'
+import { calendarKeyInZone, instantForDay, zonedDayBounds } from '../utils/day'
 import { decrypt } from '../utils/crypto'
 import { kcalFromSteps } from '../utils/steps'
 
@@ -25,8 +25,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const data = body.data
-  // Дату фіксуємо на полудень UTC, щоб нормалізація до доби була стабільною.
-  const performedAt = data.date ? new Date(`${data.date}T12:00:00.000Z`) : new Date()
+  const performedAt = instantForDay(data.date)
 
   const steps = data.steps ?? null
   // Якщо калорії не вказані вручну, але є кроки — оцінюємо витрати за вагою профілю.
@@ -55,10 +54,10 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  const dayStart = startOfDay(performedAt)
-  const dayEnd = nextDay(performedAt)
+  const key = calendarKeyInZone(performedAt)
+  const { start, end } = zonedDayBounds(key)
   const sums = await prisma.exerciseLog.aggregate({
-    where: { userId: user.id, performedAt: { gte: dayStart, lt: dayEnd } },
+    where: { userId: user.id, performedAt: { gte: start, lt: end } },
     _sum: { kcalBurned: true },
   })
 

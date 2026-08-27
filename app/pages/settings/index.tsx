@@ -27,6 +27,12 @@ const cards: SettingsCard[] = [
     description: 'Провайдер і моделі для розпізнавання їжі, власні API-ключі.',
     icon: 'M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5',
   },
+  {
+    to: '/settings/account',
+    title: 'Акаунт',
+    description: 'Зміна пароля та видалення всіх даних.',
+    icon: 'M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2Zm6-10V7a4 4 0 0 0-8 0',
+  },
 ]
 
 export default defineComponent({

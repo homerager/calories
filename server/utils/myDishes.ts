@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { dayKeyFromStored } from './day'
 
 // Особиста база «Мої страви»: агрегація страв із історії MealEntry користувача.
 // Джерело поживності на 100 г — довідник FoodItem; типова порція — з останнього запису.
@@ -10,6 +11,7 @@ export interface UserDish {
   timesUsed: number
   lastUsedAt: string | null
   lastPortionGrams: number
+  favorite: boolean
 }
 
 /** Випадкова вибірка n елементів (Fisher-Yates), без мутації вхідного масиву. */
@@ -46,28 +48,34 @@ export async function getUserDishes(userId: string, take = 30): Promise<UserDish
 
   const ids = top.map((g) => g.foodItemId)
 
-  const foodItems = await prisma.foodItem.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      name: true,
-      kcalPer100: true,
-      proteinPer100: true,
-      fatPer100: true,
-      carbPer100: true,
-    },
-  })
+  const [foodItems, latest, favs] = await Promise.all([
+    prisma.foodItem.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        name: true,
+        kcalPer100: true,
+        proteinPer100: true,
+        fatPer100: true,
+        carbPer100: true,
+      },
+    }),
+    prisma.mealEntry.findMany({
+      where: { userId, foodItemId: { in: ids } },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      distinct: ['foodItemId'],
+      select: { foodItemId: true, portionGrams: true },
+    }),
+    prisma.foodFavorite.findMany({
+      where: { userId, foodItemId: { in: ids } },
+      select: { foodItemId: true },
+    }),
+  ])
   const byId = new Map(foodItems.map((f) => [f.id, f]))
-
-  const latest = await prisma.mealEntry.findMany({
-    where: { userId, foodItemId: { in: ids } },
-    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-    distinct: ['foodItemId'],
-    select: { foodItemId: true, portionGrams: true },
-  })
   const portionById = new Map(latest.map((e) => [e.foodItemId, e.portionGrams]))
+  const favSet = new Set(favs.map((f) => f.foodItemId))
 
-  return top
+  const dishes = top
     .map((g): UserDish | null => {
       const food = byId.get(g.foodItemId)
       if (!food) return null
@@ -81,9 +89,13 @@ export async function getUserDishes(userId: string, take = 30): Promise<UserDish
           carb: food.carbPer100,
         },
         timesUsed: g._count._all ?? 0,
-        lastUsedAt: g._max.date ? g._max.date.toISOString() : null,
+        lastUsedAt: g._max.date ? dayKeyFromStored(g._max.date) : null,
         lastPortionGrams: portionById.get(g.foodItemId) ?? 100,
+        favorite: favSet.has(food.id),
       }
     })
     .filter((x): x is UserDish => x !== null)
+
+  dishes.sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.timesUsed - a.timesUsed)
+  return dishes
 }

@@ -1,5 +1,5 @@
 import { prisma } from '../../utils/prisma'
-import { startOfDay } from '../../utils/aggregates'
+import { dayKeyFromStored, resolveDayStart } from '../../utils/day'
 import { createMealEntry } from '../../utils/mealCreate'
 import { menuApplySchema } from '../../utils/menuSchemas'
 import type { DailyTotals } from '../../utils/aggregates'
@@ -47,30 +47,35 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const dayStart = startOfDay(new Date(`${data.date}T12:00:00.000Z`))
+  const dayStart = resolveDayStart(data.date)
 
   let totals: DailyTotals = { totalKcal: 0, totalProtein: 0, totalFat: 0, totalCarb: 0 }
-  for (const item of toApply) {
-    const res = await createMealEntry({
-      userId: user.id,
-      dayStart,
-      name: item.name,
-      portionGrams: item.portionGrams,
-      kcal: item.kcal,
-      protein: item.protein,
-      fat: item.fat,
-      carb: item.carb,
-      slot: item.slot,
-      source: 'MANUAL',
-      confidence: null,
-      foodItemId: item.foodItemId,
-    })
-    totals = res.totals
-  }
+  await prisma.$transaction(async (tx) => {
+    for (const item of toApply) {
+      const res = await createMealEntry(
+        {
+          userId: user.id,
+          dayStart,
+          name: item.name,
+          portionGrams: item.portionGrams,
+          kcal: item.kcal,
+          protein: item.protein,
+          fat: item.fat,
+          carb: item.carb,
+          slot: item.slot,
+          source: 'MANUAL',
+          confidence: null,
+          foodItemId: item.foodItemId,
+        },
+        tx,
+      )
+      totals = res.totals
+    }
+  })
 
   return {
     applied: toApply.length,
-    date: dayStart.toISOString().slice(0, 10),
+    date: dayKeyFromStored(dayStart),
     totals,
   }
 })

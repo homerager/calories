@@ -2,7 +2,7 @@ import { computed, defineComponent, reactive, ref } from 'vue'
 import { EmptyState, LoadingState } from '#components'
 import { useExercise, type ExerciseItem } from '~/composables/useExercise'
 import { useProfile } from '~/composables/useProfile'
-import { todayIso } from '~/composables/useDiary'
+import { shiftIso, todayIso } from '~/utils/day'
 import { useToast } from '~/composables/useToast'
 import { btnGhostClass, btnPrimaryClass, inputClass, inputClassCompact, labelClass } from '~/utils/ui'
 
@@ -20,12 +20,6 @@ function kcalFromSteps(steps: number, weightKg?: number | null): number {
 function parseIntOrNull(value: string): number | null {
   const n = Number(value.trim().replace(',', '.'))
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null
-}
-
-function shiftIso(iso: string, deltaDays: number): string {
-  const d = new Date(`${iso}T12:00:00.000Z`)
-  d.setUTCDate(d.getUTCDate() + deltaDays)
-  return d.toISOString().slice(0, 10)
 }
 
 function timeLabel(iso: string): string {

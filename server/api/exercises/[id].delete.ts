@@ -1,6 +1,6 @@
 import { getRouterParam } from 'h3'
 import { prisma } from '../../utils/prisma'
-import { nextDay, startOfDay } from '../../utils/aggregates'
+import { calendarKeyInZone, zonedDayBounds } from '../../utils/day'
 
 // Видаляє запис активності користувача.
 export default defineEventHandler(async (event) => {
@@ -16,23 +16,22 @@ export default defineEventHandler(async (event) => {
     select: { id: true, userId: true, performedAt: true },
   })
 
-  // 404 і для чужого запису, щоб не розкривати його існування.
   if (!entry || entry.userId !== user.id) {
     throw createError({ statusCode: 404, statusMessage: 'Not Found', message: 'Запис не знайдено' })
   }
 
   await prisma.exerciseLog.delete({ where: { id } })
 
-  const dayStart = startOfDay(entry.performedAt)
-  const dayEnd = nextDay(entry.performedAt)
+  const key = calendarKeyInZone(entry.performedAt)
+  const { start, end } = zonedDayBounds(key)
   const sums = await prisma.exerciseLog.aggregate({
-    where: { userId: user.id, performedAt: { gte: dayStart, lt: dayEnd } },
+    where: { userId: user.id, performedAt: { gte: start, lt: end } },
     _sum: { kcalBurned: true },
   })
 
   return {
     ok: true,
-    date: dayStart.toISOString().slice(0, 10),
+    date: key,
     totalKcalBurned: sums._sum.kcalBurned ?? 0,
   }
 })

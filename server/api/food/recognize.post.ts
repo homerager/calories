@@ -1,6 +1,7 @@
 import { recognizeSchema } from '../../utils/foodSchemas'
 import { prisma } from '../../utils/prisma'
 import { normalizeFoodKey } from '../../utils/crypto'
+import { findAccessibleFoodByKey } from '../../utils/foodItem'
 import { roundKcal, roundMacro } from '../../utils/food'
 import {
   AiProviderError,
@@ -48,7 +49,7 @@ export default defineEventHandler(async (event) => {
   // 1) Кеш довідника (лише для тексту): точний збіг за нормалізованим ключем.
   if (data.kind === 'TEXT' && data.text) {
     const normalizedKey = normalizeFoodKey(data.text)
-    const item = await prisma.foodItem.findUnique({ where: { normalizedKey } })
+    const item = await findAccessibleFoodByKey(prisma, user.id, normalizedKey)
     if (item) {
       const target = await resolveLogTarget(user.id)
       if (target) {
@@ -60,7 +61,6 @@ export default defineEventHandler(async (event) => {
         })
       }
 
-      // Чернетка на базову порцію 100 г (значення довідника — на 100 г).
       return {
         cacheHit: true,
         provider: target?.provider ?? null,

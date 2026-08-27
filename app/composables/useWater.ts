@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { todayIso } from './useDiary'
+import { todayIso } from '~/utils/day'
 
 // Клієнтський composable для журналу води: записи дня, сума випитого (мл),
 // додавання та видалення записів (ручне введення).

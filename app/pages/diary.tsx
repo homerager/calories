@@ -3,7 +3,6 @@ import { EmptyState, ErrorBanner, FoodSuggestions, LoadingState, NuxtLink } from
 import { compressImage } from '~/utils/image'
 import {
   useDiary,
-  todayIso,
   type FoodSearchHit,
   type MealItem,
   type MealSlot,
@@ -12,6 +11,7 @@ import {
   type RecognizeDraft,
 } from '~/composables/useDiary'
 import { useToast } from '~/composables/useToast'
+import { shiftIso, todayIso } from '~/utils/day'
 import {
   btnGhostClass,
   btnPrimaryClass,
@@ -53,12 +53,6 @@ const roundMacro = (v: number) => Math.round(v * 10) / 10
 function parseNum(value: string): number {
   const n = Number(value.trim().replace(',', '.'))
   return Number.isFinite(n) ? n : 0
-}
-
-function shiftIso(iso: string, deltaDays: number): string {
-  const d = new Date(`${iso}T12:00:00.000Z`)
-  d.setUTCDate(d.getUTCDate() + deltaDays)
-  return d.toISOString().slice(0, 10)
 }
 
 // Формат дати запису (YYYY-MM-DD → DD.MM.YYYY) для рядка мета.
@@ -105,6 +99,8 @@ export default defineComponent({
       deleteMeal,
       fetchMyDishes,
       searchFood,
+      copyMeals,
+      setFavorite,
     } = useDiary()
     const toast = useToast()
 
@@ -486,6 +482,31 @@ export default defineComponent({
       }
     }
 
+    const copying = ref(false)
+    async function onCopyYesterday() {
+      copying.value = true
+      try {
+        const res = await copyMeals(shiftIso(date.value, -1), date.value)
+        toast.success(`Скопійовано ${res.copied} записів`)
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося скопіювати вчорашній день')
+      } finally {
+        copying.value = false
+      }
+    }
+
+    async function onToggleFavorite(d: MyDish) {
+      const next = !d.favorite
+      try {
+        await setFavorite(d.foodItemId, next)
+        const patch = (list: MyDish[]) =>
+          list.map((item) => (item.foodItemId === d.foodItemId ? { ...item, favorite: next } : item))
+        myDishes.value = patch(myDishes.value)
+        if (dishHits.value) dishHits.value = patch(dishHits.value)
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося оновити улюблені')
+      }
+    }
     const deletingId = ref<string | null>(null)
     async function onDelete(id: string) {
       deletingId.value = id
@@ -612,6 +633,14 @@ export default defineComponent({
             >
               Сьогодні
             </button>
+            <button
+              type="button"
+              onClick={() => void onCopyYesterday()}
+              disabled={copying.value}
+              class={btnGhostClass}
+            >
+              {copying.value ? 'Копіюємо…' : 'Копіювати вчора'}
+            </button>
           </div>
         </div>
 
@@ -714,6 +743,16 @@ export default defineComponent({
                               ) : null}
                             </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => void onToggleFavorite(d)}
+                            class="shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-amber-600 hover:bg-amber-50"
+                            aria-pressed={!!d.favorite}
+                            aria-label={d.favorite ? 'Прибрати з улюблених' : 'Додати до улюблених'}
+                            title={d.favorite ? 'В улюблених' : 'Додати до улюблених'}
+                          >
+                            {d.favorite ? '★' : '☆'}
+                          </button>
                           <button
                             type="button"
                             onClick={() => openDishDraft(d)}

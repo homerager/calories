@@ -60,3 +60,11 @@ export const mealUpdateSchema = z.object({
 })
 
 export type MealUpdateInput = z.infer<typeof mealUpdateSchema>
+
+/** Копіювання записів з одного дня на інший. */
+export const mealCopySchema = z.object({
+  fromDate: z.string().regex(DATE_RE, 'Некоректна дата (очікується YYYY-MM-DD)'),
+  toDate: z.string().regex(DATE_RE, 'Некоректна дата (очікується YYYY-MM-DD)'),
+})
+
+export type MealCopyInput = z.infer<typeof mealCopySchema>

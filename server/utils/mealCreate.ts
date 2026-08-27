@@ -1,10 +1,10 @@
 import type { Prisma } from '../../prisma/generated/client/client'
 import type { MealSlot, MealSource } from '../../prisma/generated/client/enums'
 import { prisma } from './prisma'
-import { normalizeFoodKey } from './crypto'
 import { recomputeDailyAggregate, type DailyTotals, type DbClient } from './aggregates'
 import { toMealResponse, toPer100, type MealResponse } from './food'
 import { scheduleEnsureEmbedding } from '../ai/embeddings'
+import { resolveFoodItemForMeal } from './foodItem'
 
 // Спільна логіка створення запису прийому їжі: гарантований звʼязок із FoodItem
 // (upsert довідника без перезапису curated-даних) + перерахунок денного агрегату.
@@ -56,23 +56,14 @@ export async function createMealEntry(
   const per100 = toPer100(input)
 
   const run = async (db: DbClient) => {
-    let foodItemId = input.foodItemId ?? null
-
-    if (!foodItemId) {
-      const normalizedKey = normalizeFoodKey(input.name)
-      const item = await db.foodItem.upsert({
-        where: { normalizedKey },
-        update: {},
-        create: {
-          name: input.name,
-          normalizedKey,
-          ...per100,
-          source: input.source === 'MANUAL' ? 'USER' : 'AI',
-        },
-        select: { id: true },
-      })
-      foodItemId = item.id
-    }
+    const foodItemId = await resolveFoodItemForMeal(
+      db,
+      input.userId,
+      input.name,
+      per100,
+      input.source,
+      input.foodItemId,
+    )
 
     const entry = await db.mealEntry.create({
       data: {

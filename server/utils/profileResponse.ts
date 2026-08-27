@@ -1,5 +1,6 @@
 import type { ActivityLevel, Goal, Sex } from '../../prisma/generated/client/enums'
 import { decrypt } from './crypto'
+import { dayKeyFromStored } from './day'
 
 // Серіалізація запису Profile у безпечну для клієнта форму:
 // чутливі виміри розшифровуються, дата народження віддається як YYYY-MM-DD.
@@ -59,7 +60,7 @@ export function toProfileResponse(profile: ProfileRecord): ProfileResponse {
   return {
     name: profile.name,
     sex: profile.sex,
-    birthDate: profile.birthDate ? profile.birthDate.toISOString().slice(0, 10) : null,
+    birthDate: profile.birthDate ? dayKeyFromStored(profile.birthDate) : null,
     age: profile.age,
     activityLevel: profile.activityLevel,
     goal: profile.goal,

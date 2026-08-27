@@ -13,6 +13,7 @@ declare module '#auth-utils' {
 
   interface SecureSessionData {
     // Місце для серверних (незашифрованих для клієнта) даних сесії за потреби.
+    _unused?: never
   }
 }
 

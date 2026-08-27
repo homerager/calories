@@ -1,10 +1,11 @@
 import { getRouterParam } from 'h3'
 import { mealUpdateSchema } from '../../utils/foodSchemas'
 import { prisma } from '../../utils/prisma'
-import { normalizeFoodKey } from '../../utils/crypto'
-import { recomputeDailyAggregate, startOfDay } from '../../utils/aggregates'
+import { recomputeDailyAggregate } from '../../utils/aggregates'
+import { asDayStart } from '../../utils/day'
 import { toMealResponse, toPer100 } from '../../utils/food'
 import { scheduleEnsureEmbedding } from '../../ai/embeddings'
+import { resolveFoodItemForMeal } from '../../utils/foodItem'
 
 // Редагування наявного запису прийому їжі: назва, порція, БЖВ, прийом їжі.
 // День запису не змінюється; при зміні назви пере-привʼязуємо FoodItem (upsert
@@ -44,28 +45,18 @@ export default defineEventHandler(async (event) => {
   }
 
   const data = body.data
-  const dayStart = startOfDay(existing.date)
+  const dayStart = asDayStart(existing.date)
   const per100 = toPer100(data)
 
   const updated = await prisma.$transaction(async (tx) => {
-    let foodItemId = data.foodItemId ?? null
-
-    // Якщо конкретний запис довідника не заданий — знаходимо/створюємо за назвою.
-    if (!foodItemId) {
-      const normalizedKey = normalizeFoodKey(data.name)
-      const item = await tx.foodItem.upsert({
-        where: { normalizedKey },
-        update: {},
-        create: {
-          name: data.name,
-          normalizedKey,
-          ...per100,
-          source: (data.source ?? 'MANUAL') === 'MANUAL' ? 'USER' : 'AI',
-        },
-        select: { id: true },
-      })
-      foodItemId = item.id
-    }
+    const foodItemId = await resolveFoodItemForMeal(
+      tx,
+      user.id,
+      data.name,
+      per100,
+      data.source ?? 'MANUAL',
+      data.foodItemId,
+    )
 
     const entry = await tx.mealEntry.update({
       where: { id },

@@ -1,4 +1,5 @@
 import type { MealSlot, MealSource } from '../../prisma/generated/client/enums'
+import { dayKeyFromStored } from './day'
 
 // Хелпери для їжі: перерахунок на 100 г, округлення та серіалізація MealEntry.
 
@@ -78,7 +79,7 @@ export interface MealResponse {
 export function toMealResponse(entry: MealEntryRecord): MealResponse {
   return {
     id: entry.id,
-    date: entry.date.toISOString().slice(0, 10),
+    date: dayKeyFromStored(entry.date),
     slot: entry.slot,
     name: entry.foodItem?.name ?? '—',
     portionGrams: entry.portionGrams,

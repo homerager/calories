@@ -1,25 +1,19 @@
 import type { Prisma } from '../../prisma/generated/client/client'
 import { prisma } from './prisma'
+import { asDayStart, nextDayStart } from './day'
 
 // Перерахунок денного агрегату (DailyAggregate) із записів MealEntry.
 // Викликається після будь-якої зміни записів дня (create/update/delete).
+// Дата дня — UTC-північ YYYY-MM-DD (див. server/utils/day.ts).
 
 /** Клієнт БД: або основний prisma, або транзакційний клієнт. */
 export type DbClient = Prisma.TransactionClient | typeof prisma
 
-/** Нормалізує дату до початку доби (00:00:00.000) у локальному часі. */
-export function startOfDay(date: Date): Date {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
+/** @deprecated використовуйте asDayStart з ./day; лишаємо аліас для викликів агрегатів. */
+export const startOfDay = asDayStart
 
-/** Наступна доба після startOfDay(date). */
-export function nextDay(date: Date): Date {
-  const d = startOfDay(date)
-  d.setDate(d.getDate() + 1)
-  return d
-}
+/** @deprecated використовуйте nextDayStart з ./day. */
+export const nextDay = nextDayStart
 
 export interface DailyTotals {
   totalKcal: number

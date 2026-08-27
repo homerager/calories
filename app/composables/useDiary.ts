@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { todayIso } from '~/utils/day'
 
 // Клієнтський composable для щоденника: записи дня, норми, розпізнавання та збереження.
 
@@ -96,6 +97,7 @@ export interface MyDish {
   timesUsed: number
   lastUsedAt: string | null
   lastPortionGrams: number
+  favorite?: boolean
   similarity?: number | null
   match?: 'exact' | 'lexical' | 'semantic'
 }
@@ -110,10 +112,6 @@ export interface FoodSearchHit {
   carbPer100: number
   similarity: number | null
   match: 'exact' | 'lexical' | 'semantic'
-}
-
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
 }
 
 export function useDiary() {
@@ -207,6 +205,23 @@ export function useDiary() {
     })
   }
 
+  async function copyMeals(fromDate: string, toDate: string): Promise<{ copied: number }> {
+    const res = await $fetch<{ copied: number }>('/api/meals/copy', {
+      method: 'POST',
+      body: { fromDate, toDate },
+    })
+    await refreshMeals()
+    return res
+  }
+
+  async function setFavorite(foodItemId: string, favorite: boolean): Promise<void> {
+    if (favorite) {
+      await $fetch('/api/food-items/favorites', { method: 'POST', body: { foodItemId } })
+    } else {
+      await $fetch(`/api/food-items/favorites/${foodItemId}`, { method: 'DELETE' })
+    }
+  }
+
   return {
     date,
     meals,
@@ -221,5 +236,7 @@ export function useDiary() {
     refreshMeals,
     fetchMyDishes,
     searchFood,
+    copyMeals,
+    setFavorite,
   }
 }

@@ -58,11 +58,11 @@ export function calcBMR(sex: Sex | null | undefined, weightKg: number, heightCm:
   return base + sexConstant
 }
 
-/** Обчислює вік у повних роках із дати народження. */
+/** Обчислює вік у повних роках із дати народження (UTC-календар). */
 export function ageFromBirthDate(birthDate: Date, now: Date = new Date()): number {
-  let age = now.getFullYear() - birthDate.getFullYear()
-  const m = now.getMonth() - birthDate.getMonth()
-  if (m < 0 || (m === 0 && now.getDate() < birthDate.getDate())) {
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear()
+  const m = now.getUTCMonth() - birthDate.getUTCMonth()
+  if (m < 0 || (m === 0 && now.getUTCDate() < birthDate.getUTCDate())) {
     age--
   }
   return Math.max(0, age)

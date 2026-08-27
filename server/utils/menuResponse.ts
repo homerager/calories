@@ -1,4 +1,5 @@
 import type { MealSlot } from '../../prisma/generated/client/enums'
+import { dayKeyFromStored } from './day'
 
 // Серіалізація збереженого меню (MenuPlan + MenuItem) у DTO для клієнта.
 
@@ -34,7 +35,7 @@ export interface MenuPlanResponse {
 export function toMenuPlanResponse(plan: MenuPlanRecord): MenuPlanResponse {
   return {
     id: plan.id,
-    startDate: plan.startDate.toISOString().slice(0, 10),
+    startDate: dayKeyFromStored(plan.startDate),
     createdAt: plan.createdAt.toISOString(),
     items: plan.items.map((it) => ({
       id: it.id,

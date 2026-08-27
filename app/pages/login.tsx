@@ -89,6 +89,12 @@ export default defineComponent({
             </button>
           </form>
 
+          <p class="mt-3 text-center text-sm">
+            <NuxtLink to="/forgot-password" class="font-medium text-brand-700 hover:text-brand-800">
+              Забули пароль?
+            </NuxtLink>
+          </p>
+
           <OAuthButtons />
 
           <p class="mt-6 text-center text-sm text-gray-700">

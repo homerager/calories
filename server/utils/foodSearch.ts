@@ -5,10 +5,11 @@ import { EMBEDDING_DIMENSIONS, normalizeVector, toFloatArrayLiteral } from './ve
 import { rankFoodSearchHits, type FoodCatalogRow, type FoodSearchHit } from './foodSearchRank'
 import { embedQuery } from '../ai/embeddings'
 import type { UserDish } from './myDishes'
+import { dayKeyFromStored } from './day'
+import { foodVisibilityWhere } from './foodItem'
 
 // Гібридний пошук страв: лексика (ILIKE / normalizedKey) + косинусна схожість.
-// Вектори лежать у double precision[]; схожість = скалярний добуток нормалізованих
-// векторів, порахований у SQL через unnest (без pgvector).
+// Семантика рахується лише на обмеженому наборі кандидатів (без seq scan усієї таблиці).
 
 const CATALOG_SELECT = {
   id: true,
@@ -19,8 +20,18 @@ const CATALOG_SELECT = {
   carbPer100: true,
 } as const
 
+/** Максимум рядків, на яких рахуємо unnest-схожість (свіжіші спочатку). */
+export const SEMANTIC_CANDIDATE_LIMIT = 800
+
+/** Вікно історії для «моїх страв» у пошуку. */
+const USER_DISH_SEARCH_DAYS = 90
+
 interface SemanticRow extends FoodCatalogRow {
   similarity: number
+}
+
+function ownerWhere(userId?: string) {
+  return userId ? foodVisibilityWhere(userId) : { ownerUserId: null }
 }
 
 /** Лексичний пошук у довіднику (без AI). */
@@ -28,10 +39,12 @@ export async function searchFoodItemsLexical(
   term: string,
   take: number,
   ids?: string[],
+  userId?: string,
 ): Promise<FoodCatalogRow[]> {
   const normalized = normalizeFoodKey(term)
   return prisma.foodItem.findMany({
     where: {
+      ...ownerWhere(userId),
       ...(ids ? { id: { in: ids } } : {}),
       OR: [
         { name: { contains: term, mode: 'insensitive' } },
@@ -49,12 +62,18 @@ export async function searchFoodItemsSemantic(
   vector: number[],
   take: number,
   ids?: string[],
+  userId?: string,
 ): Promise<SemanticRow[]> {
   if (vector.length !== EMBEDDING_DIMENSIONS) return []
   const safeTake = Math.max(1, Math.min(50, Math.floor(take)))
   const literal = toFloatArrayLiteral(normalizeVector(vector))
   const idClause =
     ids && ids.length > 0 ? Prisma.sql`AND id IN (${Prisma.join(ids)})` : Prisma.empty
+  const ownerClause = userId
+    ? Prisma.sql`AND ("ownerUserId" IS NULL OR "ownerUserId" = ${userId})`
+    : Prisma.sql`AND "ownerUserId" IS NULL`
+  const candidateLimit =
+    ids && ids.length > 0 ? Math.min(ids.length, 2000) : SEMANTIC_CANDIDATE_LIMIT
 
   try {
     const rows = await prisma.$queryRaw<Array<SemanticRow & { similarity: unknown }>>`
@@ -69,9 +88,15 @@ export async function searchFoodItemsSemantic(
           SELECT COALESCE(SUM(a * b), 0)
           FROM unnest("embedding", ${literal}::double precision[]) AS t(a, b)
         ) AS similarity
-      FROM "FoodItem"
-      WHERE cardinality("embedding") = ${EMBEDDING_DIMENSIONS}
-      ${idClause}
+      FROM (
+        SELECT id, name, "kcalPer100", "proteinPer100", "fatPer100", "carbPer100", embedding
+        FROM "FoodItem"
+        WHERE cardinality("embedding") = ${EMBEDDING_DIMENSIONS}
+        ${ownerClause}
+        ${idClause}
+        ORDER BY "updatedAt" DESC
+        LIMIT ${candidateLimit}
+      ) AS "FoodItem"
       ORDER BY similarity DESC
       LIMIT ${safeTake}
     `
@@ -109,12 +134,12 @@ export async function searchFoodItems(options: {
   const ids = options.ids
   if (ids && ids.length === 0) return []
 
-  const lexical = await searchFoodItemsLexical(query, take, ids)
+  const lexical = await searchFoodItemsLexical(query, take, ids, options.userId)
 
   let semantic: SemanticRow[] = []
   const vector = await embedQuery(query, options.userId)
   if (vector) {
-    semantic = await searchFoodItemsSemantic(vector, take, ids)
+    semantic = await searchFoodItemsSemantic(vector, take, ids, options.userId)
   }
 
   return rankFoodSearchHits({ query, lexical, semantic, take })
@@ -129,9 +154,12 @@ export async function searchUserDishes(
   query: string,
   take = 30,
 ): Promise<Array<UserDish & { similarity: number | null; match: FoodSearchHit['match'] }>> {
+  const since = new Date()
+  since.setUTCDate(since.getUTCDate() - USER_DISH_SEARCH_DAYS)
+
   const grouped = await prisma.mealEntry.groupBy({
     by: ['foodItemId'],
-    where: { userId, foodItemId: { not: null } },
+    where: { userId, foodItemId: { not: null }, date: { gte: since } },
     _count: { _all: true },
     _max: { date: true },
   })
@@ -152,6 +180,11 @@ export async function searchUserDishes(
   })
   const portionById = new Map(latest.map((e) => [e.foodItemId, e.portionGrams]))
   const statsById = new Map(stats.map((g) => [g.foodItemId, g]))
+  const favs = await prisma.foodFavorite.findMany({
+    where: { userId, foodItemId: { in: hitIds } },
+    select: { foodItemId: true },
+  })
+  const favSet = new Set(favs.map((f) => f.foodItemId))
 
   return hits.map((h) => {
     const g = statsById.get(h.id)
@@ -165,10 +198,11 @@ export async function searchUserDishes(
         carb: h.carbPer100,
       },
       timesUsed: g?._count._all ?? 0,
-      lastUsedAt: g?._max.date ? g._max.date.toISOString() : null,
+      lastUsedAt: g?._max.date ? dayKeyFromStored(g._max.date) : null,
       lastPortionGrams: portionById.get(h.id) ?? 100,
       similarity: h.similarity,
       match: h.match,
+      favorite: favSet.has(h.id),
     }
   })
 }

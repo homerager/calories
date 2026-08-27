@@ -2,6 +2,7 @@ import { defineComponent, computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { DishName, EmptyState, ErrorBanner, LoadingState, NuxtLink } from '#components'
 import { useMenu, type DishDetails, type MenuItem, type MenuSlot } from '~/composables/useMenu'
 import { useToast } from '~/composables/useToast'
+import { shiftIso } from '~/utils/day'
 import { btnPrimaryClass } from '~/utils/ui'
 
 const SLOT_LABELS: Record<MenuSlot, string> = {
@@ -24,12 +25,6 @@ const DAY_LABELS = [
 ]
 
 const roundMacro = (v: number) => Math.round(v * 10) / 10
-
-function shiftIso(iso: string, deltaDays: number): string {
-  const d = new Date(`${iso}T12:00:00.000Z`)
-  d.setUTCDate(d.getUTCDate() + deltaDays)
-  return d.toISOString().slice(0, 10)
-}
 
 function formatDay(iso: string): string {
   const d = new Date(`${iso}T12:00:00.000Z`)

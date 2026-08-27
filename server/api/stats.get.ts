@@ -1,8 +1,16 @@
 import { getQuery } from 'h3'
 import { prisma } from '../utils/prisma'
-import { startOfDay, nextDay } from '../utils/aggregates'
 import { GOAL_ADJUSTMENTS } from '../utils/mifflin'
 import { decrypt } from '../utils/crypto'
+import {
+  addDaysToKey,
+  calendarKeyInZone,
+  dayKeyFromStored,
+  dayStartFromKey,
+  nextDayStart,
+  todayKey,
+  zonedDayBounds,
+} from '../utils/day'
 
 // Енергетичний еквівалент 1 кг маси тіла (≈7700 ккал) для оцінки зміни ваги.
 const KCAL_PER_KG = 7700
@@ -22,14 +30,6 @@ const RANGE_DAYS: Record<StatsRange, number> = {
 
 function parseRange(value: unknown): StatsRange {
   return value === 'day' || value === 'week' || value === 'month' ? value : 'week'
-}
-
-/** Локальний ключ доби YYYY-MM-DD (без зсуву в UTC, узгоджений зі startOfDay). */
-function dateKey(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
 interface DayPoint {
@@ -56,10 +56,12 @@ export default defineEventHandler(async (event) => {
   const range = parseRange(q.range)
   const totalDays = RANGE_DAYS[range]
 
-  const todayStart = startOfDay(new Date())
-  const fromStart = new Date(todayStart)
-  fromStart.setDate(fromStart.getDate() - (totalDays - 1))
-  const rangeEnd = nextDay(todayStart)
+  const today = todayKey()
+  const fromKey = addDaysToKey(today, -(totalDays - 1))
+  const fromStart = dayStartFromKey(fromKey)
+  const rangeEnd = nextDayStart(dayStartFromKey(today))
+  const { start: fromInstant } = zonedDayBounds(fromKey)
+  const { end: rangeInstantEnd } = zonedDayBounds(today)
 
   const [aggregates, profile, exerciseLogs, weightLogs, waterLogs] = await Promise.all([
     prisma.dailyAggregate.findMany({
@@ -78,44 +80,41 @@ export default defineEventHandler(async (event) => {
       select: { dailyKcal: true, proteinGrams: true, fatGrams: true, carbGrams: true, goal: true },
     }),
     prisma.exerciseLog.findMany({
-      where: { userId: user.id, performedAt: { gte: fromStart, lt: rangeEnd } },
+      where: { userId: user.id, performedAt: { gte: fromInstant, lt: rangeInstantEnd } },
       select: { performedAt: true, kcalBurned: true },
     }),
     // Усі зважування до кінця періоду (за зростанням) — щоб мати і базову точку
     // (останнє зважування до початку періоду), і зважування всередині періоду.
     prisma.weightLog.findMany({
-      where: { userId: user.id, measuredAt: { lt: rangeEnd } },
+      where: { userId: user.id, measuredAt: { lt: rangeInstantEnd } },
       orderBy: { measuredAt: 'asc' },
       select: { weightEnc: true, measuredAt: true },
     }),
     prisma.waterLog.findMany({
-      where: { userId: user.id, measuredAt: { gte: fromStart, lt: rangeEnd } },
+      where: { userId: user.id, measuredAt: { gte: fromInstant, lt: rangeInstantEnd } },
       select: { volumeMl: true, measuredAt: true },
     }),
   ])
 
   // Мапа за ключем доби для швидкого заповнення нулями.
   const byDate = new Map<string, (typeof aggregates)[number]>()
-  for (const agg of aggregates) byDate.set(dateKey(agg.date), agg)
+  for (const agg of aggregates) byDate.set(dayKeyFromStored(agg.date), agg)
 
-  // Спалені калорії групуємо по добі (performedAt — timestamp, тому бакетимо у JS).
   const burnedByDate = new Map<string, number>()
   for (const log of exerciseLogs) {
-    const key = dateKey(log.performedAt)
+    const key = calendarKeyInZone(log.performedAt)
     burnedByDate.set(key, (burnedByDate.get(key) ?? 0) + (log.kcalBurned ?? 0))
   }
 
-  // Вода теж бакетимо по добі (measuredAt — timestamp).
   const waterByDate = new Map<string, number>()
   for (const log of waterLogs) {
-    const key = dateKey(log.measuredAt)
+    const key = calendarKeyInZone(log.measuredAt)
     waterByDate.set(key, (waterByDate.get(key) ?? 0) + log.volumeMl)
   }
 
   const days: DayPoint[] = []
-  const cursor = new Date(fromStart)
   for (let i = 0; i < totalDays; i++) {
-    const key = dateKey(cursor)
+    const key = addDaysToKey(fromKey, i)
     const agg = byDate.get(key)
     days.push({
       date: key,
@@ -126,7 +125,6 @@ export default defineEventHandler(async (event) => {
       burned: burnedByDate.get(key) ?? 0,
       waterMl: waterByDate.get(key) ?? 0,
     })
-    cursor.setDate(cursor.getDate() + 1)
   }
 
   const totals: Macros = { kcal: 0, protein: 0, fat: 0, carb: 0 }
@@ -201,8 +199,8 @@ export default defineEventHandler(async (event) => {
     })
     .filter((e): e is { weightKg: number; measuredAt: Date } => e !== null)
 
-  const before = decoded.filter((e) => e.measuredAt < fromStart)
-  const inPeriod = decoded.filter((e) => e.measuredAt >= fromStart)
+  const before = decoded.filter((e) => e.measuredAt < fromInstant)
+  const inPeriod = decoded.filter((e) => e.measuredAt >= fromInstant)
 
   let weightActual: {
     startKg: number
@@ -228,8 +226,8 @@ export default defineEventHandler(async (event) => {
 
   return {
     range,
-    from: dateKey(fromStart),
-    to: dateKey(todayStart),
+    from: fromKey,
+    to: today,
     totalDays,
     loggedDays,
     activeDays,

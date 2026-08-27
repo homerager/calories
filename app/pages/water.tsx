@@ -1,7 +1,7 @@
 import { defineComponent, reactive, ref } from 'vue'
 import { EmptyState, LoadingState } from '#components'
 import { useWater, WATER_DAILY_GOAL_ML, type WaterItem } from '~/composables/useWater'
-import { todayIso } from '~/composables/useDiary'
+import { shiftIso, todayIso } from '~/utils/day'
 import { useToast } from '~/composables/useToast'
 import { btnGhostClass, btnPrimaryClass, inputClass, inputClassCompact, labelClass } from '~/utils/ui'
 
@@ -14,12 +14,6 @@ const QUICK_VOLUMES = [200, 250, 300, 500]
 function parseIntOrNull(value: string): number | null {
   const n = Number(value.trim().replace(',', '.'))
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null
-}
-
-function shiftIso(iso: string, deltaDays: number): string {
-  const d = new Date(`${iso}T12:00:00.000Z`)
-  d.setUTCDate(d.getUTCDate() + deltaDays)
-  return d.toISOString().slice(0, 10)
 }
 
 function timeLabel(iso: string): string {

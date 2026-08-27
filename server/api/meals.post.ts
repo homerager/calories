@@ -1,11 +1,9 @@
 import { mealCreateSchema } from '../utils/foodSchemas'
-import { startOfDay } from '../utils/aggregates'
+import { resolveDayStart } from '../utils/day'
 import { createMealEntry } from '../utils/mealCreate'
 import type { Prisma } from '../../prisma/generated/client/client'
 
 // Підтвердження/редагування розпізнаного (або ручне додавання) → MealEntry.
-// Гарантовано звʼязує запис із FoodItem (для назви), робить upsert довідника
-// (без перезапису наявних curated-записів) і перераховує денний агрегат.
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event)
 
@@ -26,9 +24,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const data = body.data
-  // Дату фіксуємо на полудень UTC, щоб нормалізація до доби була стабільною.
-  const baseDate = data.date ? new Date(`${data.date}T12:00:00.000Z`) : new Date()
-  const dayStart = startOfDay(baseDate)
+  const dayStart = resolveDayStart(data.date)
 
   const rawAiJson =
     data.rawAiJson === undefined ? undefined : (data.rawAiJson as Prisma.InputJsonValue)
