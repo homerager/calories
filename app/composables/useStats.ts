@@ -1,7 +1,8 @@
 import { computed, ref } from 'vue'
+import { todayIso } from '~/utils/day'
 
-// Клієнтський composable для сторінки статистики: діапазон день/тиждень/місяць,
-// добові точки, суми, середні та норми (для прогресу відносно норм).
+// Клієнтський composable для сторінки статистики: діапазон день/тиждень/місяць
+// відносно обраної дати, добові точки, суми, середні та норми.
 
 export type StatsRange = 'day' | 'week' | 'month'
 
@@ -75,11 +76,15 @@ const EMPTY_NORMS: StatsNorms = {
 export function useStats() {
   const requestFetch = useRequestFetch()
   const range = ref<StatsRange>('week')
+  const date = ref<string>(todayIso())
 
   const { data, pending, refresh } = useAsyncData(
     'stats',
-    () => requestFetch<StatsResponse>('/api/stats', { query: { range: range.value } }),
-    { watch: [range] },
+    () =>
+      requestFetch<StatsResponse>('/api/stats', {
+        query: { range: range.value, date: date.value },
+      }),
+    { watch: [range, date] },
   )
 
   const days = computed<StatsDay[]>(() => data.value?.days ?? [])
@@ -97,6 +102,7 @@ export function useStats() {
 
   return {
     range,
+    date,
     days,
     totals,
     averages,

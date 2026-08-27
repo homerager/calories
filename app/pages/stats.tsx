@@ -3,7 +3,8 @@ import { CaloriesChart, LoadingState, WaterChart, WeightChart } from '#component
 import { useStats, type StatsRange } from '~/composables/useStats'
 import { useProfile } from '~/composables/useProfile'
 import { WATER_DAILY_GOAL_ML } from '~/composables/useWater'
-import { btnTabActiveClass, btnTabIdleClass } from '~/utils/ui'
+import { shiftIso, todayIso } from '~/utils/day'
+import { btnGhostClass, btnTabActiveClass, btnTabIdleClass, inputClassCompact } from '~/utils/ui'
 
 const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
   { value: 'day', label: 'День' },
@@ -65,6 +66,7 @@ export default defineComponent({
 
     const {
       range,
+      date,
       days,
       totals,
       averages,
@@ -92,18 +94,54 @@ export default defineComponent({
       <section class="space-y-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h1 class="text-2xl font-bold text-gray-900">Статистика</h1>
-          <div class="flex gap-2">
-            {RANGE_OPTIONS.map((o) => (
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2">
               <button
-                key={o.value}
                 type="button"
-                onClick={() => (range.value = o.value)}
-                aria-pressed={range.value === o.value}
-                class={range.value === o.value ? btnTabActiveClass : btnTabIdleClass}
+                onClick={() => (date.value = shiftIso(date.value, -1))}
+                class={btnGhostClass}
+                aria-label="Попередній день"
               >
-                {o.label}
+                ←
               </button>
-            ))}
+              <input
+                type="date"
+                max={todayIso()}
+                value={date.value}
+                onInput={(e) => (date.value = (e.target as HTMLInputElement).value || todayIso())}
+                aria-label="Дата"
+                class={inputClassCompact}
+              />
+              <button
+                type="button"
+                onClick={() => (date.value = shiftIso(date.value, 1))}
+                disabled={date.value >= todayIso()}
+                class={`${btnGhostClass} disabled:opacity-40`}
+                aria-label="Наступний день"
+              >
+                →
+              </button>
+              <button
+                type="button"
+                onClick={() => (date.value = todayIso())}
+                class={btnGhostClass}
+              >
+                Сьогодні
+              </button>
+            </div>
+            <div class="flex gap-2">
+              {RANGE_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => (range.value = o.value)}
+                  aria-pressed={range.value === o.value}
+                  class={range.value === o.value ? btnTabActiveClass : btnTabIdleClass}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

@@ -7,6 +7,7 @@ import {
   calendarKeyInZone,
   dayKeyFromStored,
   dayStartFromKey,
+  isDateKey,
   nextDayStart,
   todayKey,
   zonedDayBounds,
@@ -16,12 +17,13 @@ import {
 const KCAL_PER_KG = 7700
 
 // Статистика споживання за період (день / тиждень / місяць) із DailyAggregate.
-// Повертає добові точки (із нулями для днів без записів), суми, середні
-// (по днях із записами) та цільові норми з профілю — для прогресу відносно норм.
+// Кінець періоду — ?date=YYYY-MM-DD (за замовчуванням сьогодні; майбутні дати
+// відсікаються). Повертає добові точки (із нулями для днів без записів), суми,
+// середні (по днях із записами) та цільові норми з профілю.
 
 type StatsRange = 'day' | 'week' | 'month'
 
-// Кількість календарних днів у діапазоні (включно з сьогоднішнім).
+// Кількість календарних днів у діапазоні (включно з обраним кінцевим днем).
 const RANGE_DAYS: Record<StatsRange, number> = {
   day: 1,
   week: 7,
@@ -57,11 +59,12 @@ export default defineEventHandler(async (event) => {
   const totalDays = RANGE_DAYS[range]
 
   const today = todayKey()
-  const fromKey = addDaysToKey(today, -(totalDays - 1))
+  const toKey = isDateKey(q.date) && q.date <= today ? q.date : today
+  const fromKey = addDaysToKey(toKey, -(totalDays - 1))
   const fromStart = dayStartFromKey(fromKey)
-  const rangeEnd = nextDayStart(dayStartFromKey(today))
+  const rangeEnd = nextDayStart(dayStartFromKey(toKey))
   const { start: fromInstant } = zonedDayBounds(fromKey)
-  const { end: rangeInstantEnd } = zonedDayBounds(today)
+  const { end: rangeInstantEnd } = zonedDayBounds(toKey)
 
   const [aggregates, profile, exerciseLogs, weightLogs, waterLogs] = await Promise.all([
     prisma.dailyAggregate.findMany({
@@ -227,7 +230,7 @@ export default defineEventHandler(async (event) => {
   return {
     range,
     from: fromKey,
-    to: today,
+    to: toKey,
     totalDays,
     loggedDays,
     activeDays,
