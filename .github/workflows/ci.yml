@@ -9,6 +9,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Prisma 7 resolves DATABASE_URL while loading prisma.config.ts,
+      # including for `prisma generate` (no real DB needed).
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
