@@ -4,6 +4,8 @@ import { dayKeyFromStored, nextDayStart, resolveDayStart, todayKey } from '../..
 import { createMealEntry } from '../../utils/mealCreate'
 import type { DailyTotals } from '../../utils/aggregates'
 
+
+
 // Копіює всі записи прийому їжі з fromDate на toDate (дописує, не замінює).
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event)
