@@ -3,19 +3,21 @@ import { urlBase64ToUint8Array } from '~/utils/push'
 import { extractErrorMessage } from '~/utils/errors'
 
 // Клієнтський composable для Web Push: стан дозволу, підписка/відписка.
-// Service Worker реєструє @vite-pwa/nuxt — тут лише чекаємо active registration.
 //
-// iOS (PWA з домашнього екрана) має кілька пасток:
-// 1. Notification.requestPermission() має викликатися синхронно в тому ж тапі,
-//    без await і без реактивних оновлень (disabled на кнопці знімає user gesture).
-// 2. requestPermission() інколи повертає denied/default навіть після «Дозволити» —
-//    тоді все одно пробуємо pushManager.subscribe().
-// 3. navigator.serviceWorker.ready на iOS PWA часто зависає, навіть коли
-//    реєстрація вже є. Беремо її через getRegistration() і підписуємось
-//    без очікування, що SW уже контролює сторінку.
+// iOS (PWA з домашнього екрана):
+// 1. Notification.requestPermission() — синхронно в тому ж тапі, без реактивних
+//    оновлень (disabled на кнопці знімає user gesture).
+// 2. requestPermission() інколи бреше про denied — усе одно пробуємо subscribe().
+// 3. pushManager.getSubscription/subscribe кидають
+//    "Getting push subscription requires a service worker", якщо немає
+//    registration.active. Чекаємо саме .active (не serviceWorker.ready).
 
-const SW_POLL_MS = 200
-const SW_WAIT_MS = 15_000
+const SW_POLL_MS = 100
+const SW_ACTIVE_WAIT_MS = 20_000
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
 
 function isIosDevice(): boolean {
   if (!import.meta.client) return false
@@ -65,6 +67,22 @@ function permissionDeniedMessage(): string {
   return 'Дозвіл на сповіщення не надано. Дозвольте сповіщення для цього сайту в налаштуваннях браузера.'
 }
 
+function swNotActiveMessage(): string {
+  return 'Service Worker ще не активувався. Повністю закрийте додаток і відкрийте знову з іконки на головному екрані.'
+}
+
+function isMissingWorkerError(err: unknown): boolean {
+  const message = err && typeof err === 'object' ? String((err as { message?: unknown }).message ?? '') : ''
+  return /requires a service worker/i.test(message) || /no active service worker/i.test(message)
+}
+
+function swScript(): { url: string; options: RegistrationOptions } {
+  if (import.meta.dev) {
+    return { url: '/dev-sw.js?dev-sw', options: { type: 'module', scope: '/' } }
+  }
+  return { url: '/sw.js', options: { scope: '/' } }
+}
+
 export function usePushSubscription() {
   const supported = ref(false)
   const permission = ref<NotificationPermission>('default')
@@ -76,69 +94,78 @@ export function usePushSubscription() {
   // Не реактивний: блокує подвійний тап, не тригерить re-render під час системного діалогу.
   let inFlight = false
 
-  function pwaRegistration(): ServiceWorkerRegistration | undefined {
-    return useNuxtApp().$pwa?.getSWRegistration?.()
-  }
-
-  async function lookupRegistration(): Promise<ServiceWorkerRegistration | undefined> {
-    const fromPwa = pwaRegistration()
-    if (fromPwa) return fromPwa
+  async function collectRegistrations(): Promise<ServiceWorkerRegistration[]> {
+    const found: ServiceWorkerRegistration[] = []
+    const fromPwa = useNuxtApp().$pwa?.getSWRegistration?.()
+    if (fromPwa) found.push(fromPwa)
 
     try {
       const matching = await navigator.serviceWorker.getRegistration()
-      if (matching) return matching
-      const all = await navigator.serviceWorker.getRegistrations()
-      return all.find((r) => r.active || r.waiting || r.installing) ?? all[0]
-    } catch {
-      return undefined
-    }
-  }
-
-  function waitUntilActivated(reg: ServiceWorkerRegistration): Promise<ServiceWorkerRegistration> {
-    if (reg.active) return Promise.resolve(reg)
-
-    return new Promise((resolve) => {
-      const finish = () => resolve(reg)
-      const timer = window.setTimeout(finish, SW_WAIT_MS)
-
-      const watch = (sw: ServiceWorker | null) => {
-        if (!sw) return
-        if (sw.state === 'activated') {
-          window.clearTimeout(timer)
-          finish()
-          return
-        }
-        sw.addEventListener('statechange', () => {
-          if (sw.state === 'activated') {
-            window.clearTimeout(timer)
-            finish()
-          }
-        })
+      if (matching) found.push(matching)
+      for (const reg of await navigator.serviceWorker.getRegistrations()) {
+        if (!found.includes(reg)) found.push(reg)
       }
-
-      watch(reg.installing)
-      watch(reg.waiting)
-      watch(reg.active)
-      reg.addEventListener('updatefound', () => watch(reg.installing))
-    })
+    } catch {
+      // ignore
+    }
+    return found
   }
 
-  async function waitForActiveRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+  async function waitUntilActive(
+    reg: ServiceWorkerRegistration,
+    timeoutMs = SW_ACTIVE_WAIT_MS,
+  ): Promise<ServiceWorkerRegistration | undefined> {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (reg.active) return reg
+      reg.waiting?.postMessage({ type: 'SKIP_WAITING' })
+      await sleep(SW_POLL_MS)
+    }
+    return reg.active ? reg : undefined
+  }
+
+  async function waitForController(timeoutMs: number): Promise<void> {
+    if (navigator.serviceWorker.controller) return
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })
+      }),
+      sleep(timeoutMs),
+    ])
+  }
+
+  async function ensureActiveRegistration(): Promise<ServiceWorkerRegistration | undefined> {
     if (!import.meta.client || !('serviceWorker' in navigator)) return undefined
 
-    const deadline = Date.now() + SW_WAIT_MS
-    while (Date.now() < deadline) {
-      const found = await lookupRegistration()
-      if (found) {
-        found.waiting?.postMessage({ type: 'SKIP_WAITING' })
-        return waitUntilActivated(found)
-      }
-      await new Promise((r) => window.setTimeout(r, SW_POLL_MS))
+    const existing = await collectRegistrations()
+    const alreadyActive = existing.find((reg) => reg.active)
+    if (alreadyActive) {
+      await waitForController(1500)
+      return alreadyActive
     }
 
-    // Не використовуємо navigator.serviceWorker.ready: на iOS PWA воно часто
-    // ніколи не резолвиться, навіть коли реєстрація вже є.
-    return lookupRegistration()
+    const pending = existing.find((reg) => reg.installing || reg.waiting)
+    if (pending) {
+      const activated = await waitUntilActive(pending)
+      if (activated?.active) {
+        await waitForController(1500)
+        return activated
+      }
+    }
+
+    try {
+      const { url, options } = swScript()
+      const registered = await navigator.serviceWorker.register(url, options)
+      const activated = await waitUntilActive(registered)
+      if (activated?.active) {
+        await waitForController(1500)
+        return activated
+      }
+    } catch {
+      // реєстрація не вдалася — повернемо undefined
+    }
+
+    return undefined
   }
 
   onMounted(async () => {
@@ -152,11 +179,12 @@ export function usePushSubscription() {
     permission.value = Notification.permission
 
     try {
-      const registration = await waitForActiveRegistration()
-      const existing = await registration?.pushManager.getSubscription()
+      const registration = await ensureActiveRegistration()
+      if (!registration?.active) return
+      const existing = await registration.pushManager.getSubscription()
       subscribed.value = existing != null
     } catch {
-      // SW ще не активовано (напр. HTTP без localhost) — subscribe() покаже помилку.
+      // SW ще не активовано — subscribe() покаже помилку.
     }
   })
 
@@ -208,10 +236,9 @@ export function usePushSubscription() {
     busy.value = true
     error.value = null
     try {
-      const registration = await waitForActiveRegistration()
-      if (!registration) {
-        error.value =
-          'Не вдалося зареєструвати Service Worker. Закрийте додаток повністю й відкрийте знову з іконки на головному екрані.'
+      const registration = await ensureActiveRegistration()
+      if (!registration?.active) {
+        error.value = swNotActiveMessage()
         return
       }
 
@@ -243,6 +270,10 @@ export function usePushSubscription() {
         error.value = permissionDeniedMessage()
         return
       }
+      if (isMissingWorkerError(err)) {
+        error.value = swNotActiveMessage()
+        return
+      }
       error.value = extractErrorMessage(err) ?? 'Не вдалося увімкнути push-сповіщення'
     } finally {
       busy.value = false
@@ -256,8 +287,12 @@ export function usePushSubscription() {
     busy.value = true
     inFlight = true
     try {
-      const registration = await waitForActiveRegistration()
-      const subscription = await registration?.pushManager.getSubscription()
+      const registration = await ensureActiveRegistration()
+      if (!registration?.active) {
+        subscribed.value = false
+        return
+      }
+      const subscription = await registration.pushManager.getSubscription()
       if (subscription) {
         const endpoint = subscription.endpoint
         await subscription.unsubscribe()

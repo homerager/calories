@@ -1,22 +1,31 @@
 /// <reference lib="webworker" />
 /// <reference types="vite-plugin-pwa/client" />
-import { clientsClaim } from 'workbox-core'
-import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 
 declare let self: ServiceWorkerGlobalScope
 
-precacheAndRoute(self.__WB_MANIFEST)
-cleanupOutdatedCaches()
-
-self.skipWaiting()
-clientsClaim()
+// injectManifest підставляє список асетів. Precache робимо в activate і з
+// проковтнутими помилками — інакше install на iOS зависає/падає, і
+// pushManager кидає "Getting push subscription requires a service worker".
+const PRECACHE_URLS = (self.__WB_MANIFEST || []).map((entry) =>
+  typeof entry === 'string' ? entry : entry.url,
+)
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting())
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    (async () => {
+      await self.clients.claim()
+      try {
+        const cache = await caches.open('calories-precache-v1')
+        await Promise.all(PRECACHE_URLS.map((url) => cache.add(url).catch(() => undefined)))
+      } catch {
+        // Офлайн-кеш не обовʼязковий для push.
+      }
+    })(),
+  )
 })
 
 self.addEventListener('message', (event) => {
@@ -33,6 +42,8 @@ self.addEventListener('fetch', (event) => {
         const cached =
           (await caches.match('/offline.html')) ?? (await caches.match('/offline'))
         if (cached) return cached
+        const fallback = await caches.match(event.request)
+        if (fallback) return fallback
         return new Response(
           '<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Calories — офлайн</title></head><body><h1>Немає зʼєднання</h1><p>Calories зараз офлайн. Перевірте мережу й оновіть сторінку.</p></body></html>',
           {
