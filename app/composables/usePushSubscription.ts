@@ -10,10 +10,12 @@ import { extractErrorMessage } from '~/utils/errors'
 //    без await і без реактивних оновлень (disabled на кнопці знімає user gesture).
 // 2. requestPermission() інколи повертає denied/default навіть після «Дозволити» —
 //    тоді все одно пробуємо pushManager.subscribe().
-// 3. $pwa.getSWRegistration() може повернути реєстрацію ще до activate —
-//    subscribe() тоді падає. Чекаємо navigator.serviceWorker.ready.
+// 3. navigator.serviceWorker.ready на iOS PWA часто зависає, навіть коли
+//    реєстрація вже є. Беремо її через getRegistration() і підписуємось
+//    без очікування, що SW уже контролює сторінку.
 
-const SW_READY_TIMEOUT_MS = 20_000
+const SW_POLL_MS = 200
+const SW_WAIT_MS = 15_000
 
 function isIosDevice(): boolean {
   if (!import.meta.client) return false
@@ -74,22 +76,69 @@ export function usePushSubscription() {
   // Не реактивний: блокує подвійний тап, не тригерить re-render під час системного діалогу.
   let inFlight = false
 
-  async function waitForActiveRegistration(): Promise<ServiceWorkerRegistration | undefined> {
-    if (!import.meta.client || !('serviceWorker' in navigator)) return undefined
+  function pwaRegistration(): ServiceWorkerRegistration | undefined {
+    return useNuxtApp().$pwa?.getSWRegistration?.()
+  }
 
-    const { $pwa } = useNuxtApp()
-    const fromPwa = $pwa?.getSWRegistration?.()
-    if (fromPwa?.active) return fromPwa
+  async function lookupRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+    const fromPwa = pwaRegistration()
+    if (fromPwa) return fromPwa
 
     try {
-      const ready = navigator.serviceWorker.ready
-      const timedOut = new Promise<undefined>((resolve) => {
-        window.setTimeout(() => resolve(undefined), SW_READY_TIMEOUT_MS)
-      })
-      return await Promise.race([ready, timedOut])
+      const matching = await navigator.serviceWorker.getRegistration()
+      if (matching) return matching
+      const all = await navigator.serviceWorker.getRegistrations()
+      return all.find((r) => r.active || r.waiting || r.installing) ?? all[0]
     } catch {
       return undefined
     }
+  }
+
+  function waitUntilActivated(reg: ServiceWorkerRegistration): Promise<ServiceWorkerRegistration> {
+    if (reg.active) return Promise.resolve(reg)
+
+    return new Promise((resolve) => {
+      const finish = () => resolve(reg)
+      const timer = window.setTimeout(finish, SW_WAIT_MS)
+
+      const watch = (sw: ServiceWorker | null) => {
+        if (!sw) return
+        if (sw.state === 'activated') {
+          window.clearTimeout(timer)
+          finish()
+          return
+        }
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'activated') {
+            window.clearTimeout(timer)
+            finish()
+          }
+        })
+      }
+
+      watch(reg.installing)
+      watch(reg.waiting)
+      watch(reg.active)
+      reg.addEventListener('updatefound', () => watch(reg.installing))
+    })
+  }
+
+  async function waitForActiveRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+    if (!import.meta.client || !('serviceWorker' in navigator)) return undefined
+
+    const deadline = Date.now() + SW_WAIT_MS
+    while (Date.now() < deadline) {
+      const found = await lookupRegistration()
+      if (found) {
+        found.waiting?.postMessage({ type: 'SKIP_WAITING' })
+        return waitUntilActivated(found)
+      }
+      await new Promise((r) => window.setTimeout(r, SW_POLL_MS))
+    }
+
+    // Не використовуємо navigator.serviceWorker.ready: на iOS PWA воно часто
+    // ніколи не резолвиться, навіть коли реєстрація вже є.
+    return lookupRegistration()
   }
 
   onMounted(async () => {
@@ -162,7 +211,7 @@ export function usePushSubscription() {
       const registration = await waitForActiveRegistration()
       if (!registration) {
         error.value =
-          'Service Worker ще не готовий. Закрийте додаток повністю й відкрийте знову з іконки на головному екрані.'
+          'Не вдалося зареєструвати Service Worker. Закрийте додаток повністю й відкрийте знову з іконки на головному екрані.'
         return
       }
 
