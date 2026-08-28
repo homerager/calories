@@ -1,5 +1,5 @@
 import { defineComponent, computed } from 'vue'
-import { CaloriesChart, LoadingState, WaterChart, WeightChart } from '#components'
+import { ActivityChart, CaloriesChart, LoadingState, WaterChart, WeightChart } from '#components'
 import { useStats, type StatsRange } from '~/composables/useStats'
 import { useProfile } from '~/composables/useProfile'
 import { WATER_DAILY_GOAL_ML } from '~/composables/useWater'
@@ -235,7 +235,7 @@ export default defineComponent({
           )}
         </div>
 
-         {/* Графік добових калорій */}
+        {/* Графік добових калорій: спожито + спалено */}
         {!isDay.value && (
           <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
             <h2 class="text-lg font-semibold text-gray-900">Калорії по днях</h2>
@@ -244,6 +244,26 @@ export default defineComponent({
                 <LoadingState />
               ) : (
                 <CaloriesChart days={days.value} norm={norms.value.dailyKcal} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Графік калорій активності */}
+        {!isDay.value && (
+          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+            <div class="flex items-baseline justify-between">
+              <h2 class="text-lg font-semibold text-gray-900">Активність по днях</h2>
+              <span class="text-sm text-gray-500">
+                Днів з активністю: <strong class="text-gray-800">{activeDays.value}</strong> /{' '}
+                {totalDays.value}
+              </span>
+            </div>
+            <div class="mt-4">
+              {pending.value && days.value.length === 0 ? (
+                <LoadingState />
+              ) : (
+                <ActivityChart days={days.value} />
               )}
             </div>
           </div>

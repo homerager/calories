@@ -600,47 +600,51 @@ export default defineComponent({
         {/* Заголовок + навігація по датах */}
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h1 class="text-2xl font-bold text-gray-900">Щоденник</h1>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => (date.value = shiftIso(date.value, -1))}
-              class={btnGhostClass}
-              aria-label="Попередній день"
-            >
-              ←
-            </button>
-            <input
-              type="date"
-              max={todayIso()}
-              value={date.value}
-              onInput={(e) => (date.value = (e.target as HTMLInputElement).value || todayIso())}
-              aria-label="Дата"
-              class={inputClassCompact}
-            />
-            <button
-              type="button"
-              onClick={() => (date.value = shiftIso(date.value, 1))}
-              disabled={date.value >= todayIso()}
-              class={`${btnGhostClass} disabled:opacity-40`}
-              aria-label="Наступний день"
-            >
-              →
-            </button>
-            <button
-              type="button"
-              onClick={() => (date.value = todayIso())}
-              class={btnGhostClass}
-            >
-              Сьогодні
-            </button>
-            <button
-              type="button"
-              onClick={() => void onCopyYesterday()}
-              disabled={copying.value}
-              class={btnGhostClass}
-            >
-              {copying.value ? 'Копіюємо…' : 'Копіювати вчора'}
-            </button>
+          <div class="flex items-center gap-2 sm:flex-nowrap flex-wrap">
+            <div class="flex items-center gap-2 sm:w-auto w-full">
+              <button
+                type="button"
+                onClick={() => (date.value = shiftIso(date.value, -1))}
+                class={btnGhostClass}
+                aria-label="Попередній день"
+              >
+                ←
+              </button>
+              <input
+                type="date"
+                max={todayIso()}
+                value={date.value}
+                onInput={(e) => (date.value = (e.target as HTMLInputElement).value || todayIso())}
+                aria-label="Дата"
+                class={inputClassCompact}
+              />
+              <button
+                type="button"
+                onClick={() => (date.value = shiftIso(date.value, 1))}
+                disabled={date.value >= todayIso()}
+                class={`${btnGhostClass} disabled:opacity-40`}
+                aria-label="Наступний день"
+              >
+                →
+              </button>
+              <button
+                type="button"
+                onClick={() => (date.value = todayIso())}
+                class={btnGhostClass}
+              >
+                Сьогодні
+              </button>
+            </div>
+            <div class="flex items-center justify-end w-full sm:mt-0 mt-3">
+              <button
+                type="button"
+                onClick={() => void onCopyYesterday()}
+                disabled={copying.value}
+                class={btnTabActiveClass}
+              >
+                {copying.value ? 'Копіюємо…' : 'Копіювати вчора'}
+              </button>
+            </div>
           </div>
         </div>
 

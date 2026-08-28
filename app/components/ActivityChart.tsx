@@ -4,8 +4,7 @@ import type { ChartData, ChartOptions } from 'chart.js'
 import '~/utils/chartSetup'
 import type { StatsDay } from '../composables/useStats'
 
-// Інтерактивний графік добових калорій на Chart.js: стовпчики — спожито (червоні
-// при перевищенні норми) і спалено активністю; пунктирна лінія — цільова норма.
+// Інтерактивний графік добових калорій активності: стовпчики — спалено за день.
 
 function formatDate(iso: string): string {
   const d = new Date(`${iso}T12:00:00.000Z`)
@@ -13,58 +12,28 @@ function formatDate(iso: string): string {
 }
 
 export default defineComponent({
-  name: 'CaloriesChart',
+  name: 'ActivityChart',
   props: {
     days: {
       type: Array as PropType<StatsDay[]>,
       required: true,
     },
-    norm: {
-      type: Number as PropType<number | null>,
-      default: null,
-    },
   },
   setup(props) {
-    const chartData = computed(() => {
-      const norm = props.norm
-      const datasets: unknown[] = [
+    const hasActivity = computed(() => props.days.some((d) => d.burned > 0))
+
+    const chartData = computed<ChartData<'bar', number[], string>>(() => ({
+      labels: props.days.map((d) => formatDate(d.date)),
+      datasets: [
         {
-          type: 'bar' as const,
-          label: 'Спожито',
-          data: props.days.map((d) => Math.round(d.kcal)),
-          backgroundColor: props.days.map((d) =>
-            norm != null && norm > 0 && d.kcal > norm ? '#f87171' : '#3a8d3a',
-          ),
-          borderRadius: 4,
-          maxBarThickness: 28,
-        },
-        {
-          type: 'bar' as const,
           label: 'Спалено',
           data: props.days.map((d) => Math.round(d.burned)),
           backgroundColor: '#34d399',
           borderRadius: 4,
-          maxBarThickness: 28,
+          maxBarThickness: 40,
         },
-      ]
-      if (norm != null && norm > 0) {
-        datasets.push({
-          type: 'line' as const,
-          label: 'Норма',
-          data: props.days.map(() => norm),
-          borderColor: '#f59e0b',
-          borderDash: [5, 4],
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: false,
-        })
-      }
-
-      return {
-        labels: props.days.map((d) => formatDate(d.date)),
-        datasets,
-      } as ChartData<'bar', number[], string>
-    })
+      ],
+    }))
 
     const chartOptions = computed<ChartOptions<'bar'>>(() => ({
       responsive: true,
@@ -95,10 +64,12 @@ export default defineComponent({
     }))
 
     return () => {
-      if (props.days.length === 0) {
+      if (props.days.length === 0 || !hasActivity.value) {
         return (
           <div class="flex h-64 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
-            Ще немає даних за цей період.
+            {props.days.length === 0
+              ? 'Ще немає даних за цей період.'
+              : 'Немає записів активності за цей період.'}
           </div>
         )
       }
