@@ -101,8 +101,26 @@ model User {
   ownedFoods        FoodItem[]
   foodFavorites     FoodFavorite[]
   passwordResets    PasswordResetToken[]
+  apiTokens         ApiToken[]
 
   @@index([email])
+}
+
+// Особисті токени доступу для не-браузерних клієнтів (мобільний застосунок).
+// Передаються як `Authorization: Bearer <token>`; у БД лежить лише SHA-256 хеш.
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  name       String? // мітка клієнта/пристрою (напр. "iPhone 15")
+  lastUsedAt DateTime?
+  expiresAt  DateTime? // null → безстроковий (відкликається вручну / при виході)
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // OAuth-звʼязки (Google, GitHub, ...)

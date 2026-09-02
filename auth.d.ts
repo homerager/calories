@@ -9,11 +9,20 @@ declare module '#auth-utils' {
   interface UserSession {
     // Час входу (epoch ms) — для аудиту/діагностики.
     loggedInAt?: number
+    // true, якщо сесію відкрито через Bearer-токен (мобільний клієнт), а не cookie.
+    viaApiToken?: boolean
   }
 
   interface SecureSessionData {
     // Місце для серверних (незашифрованих для клієнта) даних сесії за потреби.
     _unused?: never
+  }
+}
+
+// id Bearer-токена поточного запиту (виставляє server/middleware/bearerAuth.ts).
+declare module 'h3' {
+  interface H3EventContext {
+    apiTokenId?: string
   }
 }
 

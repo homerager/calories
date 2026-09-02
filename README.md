@@ -83,6 +83,30 @@ git pull
 npm run build
 pm2 restart calories --update-env
 
+## Автентифікація для мобільного клієнта (Bearer-токени)
+
+Веб-версія працює на cookie-сесії (`nuxt-auth-utils`). Для не-браузерних клієнтів
+(Flutter-застосунок) додано особисті токени доступу — паралельно, без змін у
+наявних ендпоінтах.
+
+| Метод                         | Опис                                                        |
+| ----------------------------- | ---------------------------------------------------------- |
+| `POST /api/auth/token`        | `{ email, password, name? }` → `{ token, tokenId, expiresAt, user }`. Токен видається **один раз**. |
+| `DELETE /api/auth/token`      | Відкликає токен поточного запиту (вихід).                   |
+| `GET /api/auth/tokens`        | Список активних токенів користувача (екран «пристрої»).     |
+| `DELETE /api/auth/tokens/:id` | Відкликати конкретний токен.                                |
+
+Далі всі запити — із заголовком `Authorization: Bearer <token>`. Обробники
+[`server/middleware/bearerAuth.ts`](./server/middleware/bearerAuth.ts) підставляє
+сесію в контекст запиту, тож `requireUserSession` працює як і для cookie.
+
+У БД зберігається лише SHA-256 хеш токена ([`ApiToken`](./prisma/schema.prisma)).
+Термін дії — `NUXT_API_TOKEN_TTL_DAYS` (типово безстроковий).
+
+```bash
+npx prisma migrate deploy   # застосувати міграцію 20260902120000_api_tokens
+```
+
 ## Структура проєкту
 
 ```

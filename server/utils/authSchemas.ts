@@ -36,6 +36,11 @@ export const resetPasswordSchema = z.object({
     .max(200, 'Пароль задовгий'),
 })
 
+export const apiTokenRequestSchema = credentialsSchema.extend({
+  // Необовʼязкова мітка клієнта/пристрою для списку активних токенів.
+  name: z.string().trim().max(100, 'Назва задовга').optional(),
+})
+
 export const deleteAccountSchema = z.object({
   confirm: z.string().refine((v) => v === 'DELETE', { message: 'Введіть DELETE для підтвердження' }),
   password: z.string().min(1).max(200).optional(),
