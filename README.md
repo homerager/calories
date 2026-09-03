@@ -104,8 +104,20 @@ pm2 restart calories --update-env
 Термін дії — `NUXT_API_TOKEN_TTL_DAYS` (типово безстроковий).
 
 ```bash
-npx prisma migrate deploy   # застосувати міграцію 20260902120000_api_tokens
+npx prisma migrate deploy   # застосувати міграції api_tokens + fcm_tokens
 ```
+
+### Push для мобільного застосунку (FCM)
+
+| Метод | Опис |
+| --- | --- |
+| `POST /api/push/fcm-subscribe` | `{ token, platform? }` — реєструє FCM-токен пристрою |
+| `DELETE /api/push/fcm-unsubscribe` | `{ token }` — видаляє токен (вихід / вимкнення) |
+
+Планувальник нагадувань ([`server/utils/reminderDispatch.ts`](./server/utils/reminderDispatch.ts))
+розсилає і Web Push, і FCM. FCM реалізовано без `firebase-admin` — прямий виклик
+HTTP v1 API з service-account JWT ([`server/utils/fcmPush.ts`](./server/utils/fcmPush.ts)).
+Потрібен `NUXT_FCM_SERVICE_ACCOUNT` (див. `.env.example`); без нього мобільний push — no-op.
 
 ## Структура проєкту
 

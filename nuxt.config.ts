@@ -4,8 +4,12 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   // Проєкт завжди стартує на порту 3001 (dev-сервер).
+  // host: '0.0.0.0' — щоб dev-сервер був доступний не лише на ::1 (IPv6 localhost),
+  // а й на IPv4 / у локальній мережі: потрібно для Android-емулятора (10.0.2.2)
+  // та фізичних пристроїв (мобільний клієнт Flutter).
   devServer: {
     port: 3001,
+    host: '0.0.0.0',
   },
 
   modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', 'nuxt-auth-utils', '@vite-pwa/nuxt'],

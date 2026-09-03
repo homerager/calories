@@ -102,6 +102,7 @@ model User {
   foodFavorites     FoodFavorite[]
   passwordResets    PasswordResetToken[]
   apiTokens         ApiToken[]
+  fcmTokens         FcmToken[]
 
   @@index([email])
 }
@@ -117,6 +118,20 @@ model ApiToken {
   expiresAt  DateTime? // null → безстроковий (відкликається вручну / при виході)
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// FCM-токени пристроїв (мобільний застосунок) для push-сповіщень.
+model FcmToken {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  platform   String? // "android" | "ios"
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

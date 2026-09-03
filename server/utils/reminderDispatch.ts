@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { sendPushToUser } from './webPush'
+import { sendFcmToUser } from './fcmPush'
 import type { ReminderKind } from '../../prisma/generated/client/enums'
 
 // Дефолтні підписи, коли нагадування не має власного тексту (message).
@@ -71,5 +72,6 @@ export async function dispatchDueReminders(now: Date = new Date()): Promise<void
     })
 
     await sendPushToUser(reminder.userId, { title, body })
+    await sendFcmToUser(reminder.userId, { title, body })
   }
 }
