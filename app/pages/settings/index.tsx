@@ -33,6 +33,12 @@ const cards: SettingsCard[] = [
     description: 'Зміна пароля та видалення всіх даних.',
     icon: 'M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2Zm6-10V7a4 4 0 0 0-8 0',
   },
+  {
+    to: '/privacy',
+    title: 'Privacy',
+    description: 'Які дані збираємо, як зберігаємо і як їх видалити.',
+    icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z',
+  },
 ]
 
 export default defineComponent({

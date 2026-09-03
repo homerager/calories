@@ -354,8 +354,15 @@ export default defineComponent({
         </main>
 
         <footer class="border-t border-gray-200 bg-white">
-          <div class="mx-auto max-w-3xl px-4 py-4 text-center text-sm text-gray-600">
-            © {new Date().getFullYear()} Calories
+          <div class="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-4 text-center text-sm text-gray-600">
+            <span>© {new Date().getFullYear()} Calories</span>
+            <span aria-hidden="true">·</span>
+            <NuxtLink
+              to="/privacy"
+              class="font-medium text-gray-700 hover:text-brand-700 focus:outline-none focus:underline"
+            >
+              Privacy
+            </NuxtLink>
           </div>
         </footer>
 

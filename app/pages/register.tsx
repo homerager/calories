@@ -122,6 +122,14 @@ export default defineComponent({
             </button>
           </form>
 
+          <p class="mt-3 text-center text-xs text-gray-500">
+            Реєструючись, ви погоджуєтесь із{' '}
+            <NuxtLink to="/privacy" class="font-medium text-brand-700 hover:text-brand-800">
+              політикою конфіденційності
+            </NuxtLink>
+            .
+          </p>
+
           <OAuthButtons />
 
           <p class="mt-6 text-center text-sm text-gray-700">

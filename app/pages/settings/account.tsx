@@ -1,5 +1,5 @@
 import { defineComponent, ref } from 'vue'
-import { ErrorBanner } from '#components'
+import { ErrorBanner, NuxtLink } from '#components'
 import { useToast } from '~/composables/useToast'
 import { btnDangerClass, btnPrimaryClass, inputClass, labelClass } from '~/utils/ui'
 
@@ -135,7 +135,11 @@ export default defineComponent({
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-red-100">
           <h2 class="text-lg font-semibold text-red-800">Видалити акаунт</h2>
           <p class="mt-1 text-sm text-gray-600">
-            Буде стерто щоденник, профіль, меню та ключі AI. Цю дію не можна скасувати.
+            Буде стерто щоденник, профіль, меню та ключі AI. Цю дію не можна скасувати. Деталі — у{' '}
+            <NuxtLink to="/privacy" class="font-medium text-brand-700 hover:text-brand-800">
+              політиці конфіденційності
+            </NuxtLink>
+            .
           </p>
           {delError.value && (
             <div class="mt-3">
