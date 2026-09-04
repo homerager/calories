@@ -146,7 +146,7 @@ export default defineComponent({
         </div>
 
         {/* Підсумок дня */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Спалено за день</h2>
             <span class="text-2xl font-bold text-brand-600">
@@ -160,7 +160,7 @@ export default defineComponent({
         </div>
 
         {/* Додавання */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Додати активність</h2>
 
           <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -242,7 +242,7 @@ export default defineComponent({
         </div>
 
         {/* Записи дня */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Записи</h2>
             <span class="text-sm text-gray-500">

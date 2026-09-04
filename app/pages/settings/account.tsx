@@ -77,7 +77,7 @@ export default defineComponent({
           <p class="mt-1 text-sm text-gray-500">Зміна пароля та видалення даних.</p>
         </div>
 
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Пароль</h2>
           {pwdError.value && (
             <div class="mt-3">
@@ -96,7 +96,7 @@ export default defineComponent({
                 autocomplete="current-password"
                 class={inputClass}
               />
-              <p class="mt-1 text-xs text-gray-400">Порожньо, якщо входили лише через Google/GitHub.</p>
+              <p class="mt-1 text-xs text-gray-500">Порожньо, якщо входили лише через Google/GitHub.</p>
             </div>
             <div>
               <label class={labelClass} for="newPassword">
@@ -132,7 +132,7 @@ export default defineComponent({
           </form>
         </div>
 
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-red-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card ring-1 ring-red-200">
           <h2 class="text-lg font-semibold text-red-800">Видалити акаунт</h2>
           <p class="mt-1 text-sm text-gray-600">
             Буде стерто щоденник, профіль, меню та ключі AI. Цю дію не можна скасувати. Деталі — у{' '}

@@ -225,12 +225,12 @@ export default defineComponent({
               return (
                 <div
                   key={day.dayIndex}
-                  class="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-gray-100"
+                  class="rounded-2xl bg-card p-5 shadow-card"
                 >
                   <div class="flex items-baseline justify-between gap-2">
                     <h2 class="text-lg font-semibold text-gray-900">
                       {DAY_LABELS[day.dayIndex] ?? `День ${day.dayIndex + 1}`}
-                      <span class="ml-2 text-sm font-normal text-gray-400">
+                      <span class="ml-2 text-sm font-normal text-gray-500">
                         {formatDay(day.date)}
                       </span>
                     </h2>
@@ -243,7 +243,7 @@ export default defineComponent({
                   </div>
 
                   <div class="mt-1 flex items-center justify-between gap-2">
-                    <span class="text-xs text-gray-400">
+                    <span class="text-xs text-gray-500">
                       Б {roundMacro(day.totalProtein)} · Ж {roundMacro(day.totalFat)} · В{' '}
                       {roundMacro(day.totalCarb)}
                     </span>
@@ -335,7 +335,7 @@ export default defineComponent({
                 <button
                   type="button"
                   onClick={closeDetails}
-                  class="shrink-0 rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                  class="shrink-0 rounded-lg p-1 text-gray-500 transition hover:bg-gray-200 hover:text-gray-600"
                   aria-label="Закрити"
                 >
                   ✕
@@ -363,7 +363,7 @@ export default defineComponent({
                           <li key={i} class="flex justify-between gap-3 text-sm text-gray-700">
                             <span>{ing.name}</span>
                             {ing.amount ? (
-                              <span class="shrink-0 text-gray-400">{ing.amount}</span>
+                              <span class="shrink-0 text-gray-500">{ing.amount}</span>
                             ) : null}
                           </li>
                         ))}

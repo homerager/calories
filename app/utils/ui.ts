@@ -20,7 +20,7 @@ export const btnDangerClass =
   'rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:cursor-not-allowed disabled:opacity-60'
 
 export const btnGhostClass =
-  'rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-60'
+  'rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-60'
 
 export const btnTabActiveClass =
   'rounded-lg border border-brand-600 bg-brand-600 px-3 py-1.5 text-sm font-medium text-white'

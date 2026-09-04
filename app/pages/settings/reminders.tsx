@@ -130,7 +130,7 @@ export default defineComponent({
         </div>
 
         {/* Push-сповіщення */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Push-сповіщення</h2>
           <p class="mt-1 text-sm text-gray-500">
             Дозвольте браузерні сповіщення, щоб отримувати нагадування навіть коли додаток закрито.
@@ -177,7 +177,7 @@ export default defineComponent({
         </div>
 
         {/* Форма додавання/редагування */}
-        <form class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSubmit}>
+        <form class="rounded-xl bg-card md:p-6 p-5 shadow-card" onSubmit={onSubmit}>
           <h2 class="text-lg font-semibold text-gray-900">
             {editingId.value ? 'Редагувати нагадування' : 'Нове нагадування'}
           </h2>
@@ -250,7 +250,7 @@ export default defineComponent({
                     'rounded-full px-3 py-1 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-brand-300 ' +
                     (form.daysOfWeek.includes(day)
                       ? 'bg-brand-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-200')
                   }
                 >
                   {label}
@@ -292,7 +292,7 @@ export default defineComponent({
         </form>
 
         {/* Список нагадувань */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Ваші нагадування</h2>
 
           {pending.value ? (
@@ -309,7 +309,7 @@ export default defineComponent({
                   <div class="min-w-0">
                     <div class="flex items-center gap-2">
                       <span class="font-medium text-gray-900">{r.timeOfDay}</span>
-                      <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                      <span class="inline-flex items-center rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                         {REMINDER_KIND_LABELS[r.kind]}
                       </span>
                       {!r.enabled && (

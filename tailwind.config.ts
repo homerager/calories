@@ -13,6 +13,10 @@ export default <Partial<Config>>{
   ],
   theme: {
     extend: {
+      boxShadow: {
+        // М'яка «елевація» картки, як у мобільному застосунку
+        card: '0 1px 3px rgb(16 24 40 / 0.10), 0 4px 10px -2px rgb(16 24 40 / 0.14), 0 12px 28px -6px rgb(16 24 40 / 0.16)',
+      },
       colors: {
         // Тепло-зелений фон карток (як у мобільному застосунку)
         card: '#f2f5eb',

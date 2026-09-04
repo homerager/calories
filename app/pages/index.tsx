@@ -92,8 +92,8 @@ export default defineComponent({
     return () => (
       <section class="space-y-6">
         {/* Привітання */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
-          <p class="text-sm capitalize text-gray-400">{todayLabel()}</p>
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
+          <p class="text-sm capitalize text-gray-500">{todayLabel()}</p>
           <h1 class="mt-1 text-2xl font-bold text-gray-900">
             Вітаємо{greetingName.value ? `, ${greetingName.value}` : ''}!
           </h1>
@@ -101,7 +101,7 @@ export default defineComponent({
         </div>
 
         {/* Калорії дня */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Калорії сьогодні</h2>
             {kcalRemaining.value != null && (
@@ -159,7 +159,7 @@ export default defineComponent({
 
         {/* Вода + швидкі дії */}
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
             <div class="flex items-baseline justify-between">
               <h2 class="text-lg font-semibold text-gray-900">Вода</h2>
               <span class="text-sm text-gray-500">
@@ -195,7 +195,7 @@ export default defineComponent({
             </div>
           </div>
 
-          <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="rounded-xl bg-card md:p-6 p-5 shadow-card md:block hidden">
             <h2 class="text-lg font-semibold text-gray-900">Швидкі дії</h2>
             <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
               <NuxtLink
@@ -227,7 +227,7 @@ export default defineComponent({
         </div>
 
         {/* Останні записи */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Останні записи</h2>
             <NuxtLink to="/diary" class="text-sm font-medium text-brand-600 hover:text-brand-700">
@@ -251,7 +251,7 @@ export default defineComponent({
                     <div class="flex items-center gap-2">
                       <span class="block truncate font-medium text-gray-900">{m.name}</span>
                       {m.slot && (
-                        <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
+                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] text-gray-500">
                           {SLOT_LABELS[m.slot]}
                         </span>
                       )}

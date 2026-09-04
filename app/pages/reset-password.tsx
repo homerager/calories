@@ -40,7 +40,7 @@ export default defineComponent({
 
     return () => (
       <section class="mx-auto max-w-md">
-        <div class="rounded-2xl bg-card p-8 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-8 shadow-card">
           <h1 class="text-2xl font-bold text-gray-900">Новий пароль</h1>
           <p class="mt-1 text-sm text-gray-600">Придумайте пароль щонайменше з 8 символів.</p>
 

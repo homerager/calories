@@ -65,7 +65,7 @@ export default defineComponent({
     return () => {
       if (props.points.length === 0) {
         return (
-          <div class="flex h-64 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-400">
+          <div class="flex h-64 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-500">
             Ще немає записів ваги — додайте перше зважування.
           </div>
         )

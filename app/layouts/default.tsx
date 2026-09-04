@@ -135,7 +135,7 @@ export default defineComponent({
     ]
 
     const drawerItemClass =
-      'flex items-center gap-4 rounded-lg px-3 py-2.5 text-[15px] font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:bg-gray-100 [&_svg]:text-gray-500'
+      'flex items-center gap-4 rounded-lg px-3 py-2.5 text-[15px] font-medium text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:bg-gray-200 [&_svg]:text-gray-500'
     const drawerItemActiveClass = 'bg-brand-50 text-brand-700'
 
     const svg = (children: VNode) => (
@@ -211,7 +211,7 @@ export default defineComponent({
                       ref={notifButtonRef}
                       type="button"
                       onClick={toggleNotif}
-                      class="relative flex h-9 w-9 items-center justify-center rounded-full text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      class="relative flex h-9 w-9 items-center justify-center rounded-full text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300"
                       aria-haspopup="menu"
                       aria-expanded={notifOpen.value}
                       aria-controls="notif-menu"
@@ -324,7 +324,7 @@ export default defineComponent({
                   ref={burgerRef}
                   type="button"
                   onClick={toggleMobile}
-                  class="relative z-50 inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-300 md:hidden"
+                  class="relative z-50 inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-800 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 md:hidden"
                   aria-label={mobileOpen.value ? 'Закрити меню' : 'Відкрити меню'}
                   aria-haspopup="true"
                   aria-expanded={mobileOpen.value}

@@ -568,7 +568,7 @@ export default defineComponent({
             <span class="block truncate font-medium text-gray-900">{m.name}</span>
             <div class="mt-0.5 text-xs text-gray-500">
               {formatDay(m.date)}, {formatTime(m.createdAt)} · {m.portionGrams} г · Б {m.protein} · Ж {m.fat} · В {m.carb} ·{' '}
-              <span class="text-gray-400">{SOURCE_LABELS[m.source]}</span>
+              <span class="text-gray-500">{SOURCE_LABELS[m.source]}</span>
             </div>
           </div>
           <div class="shrink-0 text-right">
@@ -649,7 +649,7 @@ export default defineComponent({
         </div>
 
         {/* Прогрес відносно норм */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Прогрес дня</h2>
           <div class="mt-4 space-y-3">
             {progressBar('Калорії', totals.value.totalKcal, norms.value.dailyKcal, 'ккал', 'bg-brand-500')}
@@ -667,7 +667,7 @@ export default defineComponent({
         </div>
 
         {/* Додавання */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Додати їжу</h2>
 
           <div class="mt-4 flex flex-wrap gap-2">
@@ -740,7 +740,7 @@ export default defineComponent({
                               {Math.round(d.per100.kcal)} ккал/100 г · Б {roundMacro(d.per100.protein)} · Ж{' '}
                               {roundMacro(d.per100.fat)} · В {roundMacro(d.per100.carb)}
                               {d.timesUsed > 0 ? (
-                                <span class="text-gray-400"> · {d.timesUsed}×</span>
+                                <span class="text-gray-500"> · {d.timesUsed}×</span>
                               ) : null}
                               {d.match === 'semantic' ? (
                                 <span class="ml-1 text-brand-700">· схожа страва</span>
@@ -851,7 +851,7 @@ export default defineComponent({
                 </h3>
                 <div class="flex items-center gap-2 text-xs">
                   {draftMeta.value?.cacheHit && (
-                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">З довідника</span>
+                    <span class="rounded-full bg-gray-200 px-2 py-0.5 text-gray-600">З довідника</span>
                   )}
                   {draftMeta.value?.usingFallback && (
                     <span class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">Сервісний ключ</span>
@@ -939,7 +939,7 @@ export default defineComponent({
         </div>
 
         {/* Записи дня */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Записи</h2>
             <span class="text-sm text-gray-500">

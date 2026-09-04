@@ -121,7 +121,7 @@ export default defineComponent({
       if (!q) return null
       const pct = q.limit > 0 ? Math.min(100, Math.round((q.used / q.limit) * 100)) : 0
       return (
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Безкоштовна квота</h2>
           <p class="mt-1 text-sm text-gray-500">
             Використовується, коли для обраного провайдера немає вашого ключа (сервісний fallback).
@@ -153,7 +153,7 @@ export default defineComponent({
         </div>
 
         {/* Провайдер + моделі */}
-        <form class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSaveSettings}>
+        <form class="rounded-xl bg-card md:p-6 p-5 shadow-card" onSubmit={onSaveSettings}>
           <h2 class="text-lg font-semibold text-gray-900">Провайдер і моделі</h2>
 
           <div class="mt-4">
@@ -218,7 +218,7 @@ export default defineComponent({
         {quotaCard()}
 
         {/* Власні ключі */}
-        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
           <h2 class="text-lg font-semibold text-gray-900">Власні API-ключі</h2>
           <p class="mt-1 text-sm text-gray-600">
             Додайте свій ключ, щоб запити йшли через ваш акаунт без обмежень безкоштовної квоти.
@@ -237,7 +237,7 @@ export default defineComponent({
                         Ваш ключ: {masked}
                       </span>
                     ) : avail?.hasServiceKey ? (
-                      <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                      <span class="inline-flex items-center rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                         Сервісний ключ
                       </span>
                     ) : (
