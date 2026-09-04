@@ -13,9 +13,18 @@ export default <Partial<Config>>{
   ],
   theme: {
     extend: {
-      boxShadow: {
-        // М'яка «елевація» картки, як у мобільному застосунку
-        card: '0 1px 3px rgb(16 24 40 / 0.10), 0 4px 10px -2px rgb(16 24 40 / 0.14), 0 12px 28px -6px rgb(16 24 40 / 0.16)',
+      fontFamily: {
+        sans: [
+          'Manrope',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ],
       },
       colors: {
         // Тепло-зелений фон карток (як у мобільному застосунку)

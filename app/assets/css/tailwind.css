@@ -8,9 +8,16 @@
 
 html,
 body {
-  @apply bg-white text-gray-900 antialiased;
+  @apply bg-white font-sans text-gray-900 antialiased;
 }
 
 .skip-link {
   @apply sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-brand-800 focus:shadow-lg focus:ring-2 focus:ring-brand-400;
+}
+
+.shadow-card {
+  box-shadow:
+  0 1px 2px rgba(0, 0, 0, 0.06),
+  0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }

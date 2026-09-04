@@ -225,7 +225,7 @@ export default defineComponent({
               return (
                 <div
                   key={day.dayIndex}
-                  class="rounded-2xl bg-card p-5 shadow-card"
+                  class="rounded-xl bg-card p-5 shadow-card"
                 >
                   <div class="flex items-baseline justify-between gap-2">
                     <h2 class="text-lg font-semibold text-gray-900">
