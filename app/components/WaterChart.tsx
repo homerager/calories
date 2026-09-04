@@ -76,7 +76,7 @@ export default defineComponent({
         y: {
           beginAtZero: true,
           ticks: { callback: (v) => `${v}` },
-          grid: { color: '#f1f5f9' },
+          grid: { color: '#e2e8f0' },
         },
         x: {
           grid: { display: false },

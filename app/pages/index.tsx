@@ -79,7 +79,7 @@ export default defineComponent({
               {norm != null ? ` / ${norm}` : ''} {unit}
             </span>
           </div>
-          <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+          <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200">
             <div
               class={`h-full rounded-full transition-all ${over ? 'bg-red-400' : tint}`}
               style={{ width: `${norm && norm > 0 ? pct : value > 0 ? 100 : 0}%` }}
@@ -92,7 +92,7 @@ export default defineComponent({
     return () => (
       <section class="space-y-6">
         {/* Привітання */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <p class="text-sm capitalize text-gray-400">{todayLabel()}</p>
           <h1 class="mt-1 text-2xl font-bold text-gray-900">
             Вітаємо{greetingName.value ? `, ${greetingName.value}` : ''}!
@@ -101,7 +101,7 @@ export default defineComponent({
         </div>
 
         {/* Калорії дня */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Калорії сьогодні</h2>
             {kcalRemaining.value != null && (
@@ -159,14 +159,14 @@ export default defineComponent({
 
         {/* Вода + швидкі дії */}
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
             <div class="flex items-baseline justify-between">
               <h2 class="text-lg font-semibold text-gray-900">Вода</h2>
               <span class="text-sm text-gray-500">
                 <strong class="text-sky-600">{totalMl.value}</strong> / {goalMl.value} мл
               </span>
             </div>
-            <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-200">
               <div
                 class="h-full rounded-full bg-sky-400 transition-all"
                 style={{
@@ -195,7 +195,7 @@ export default defineComponent({
             </div>
           </div>
 
-          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
             <h2 class="text-lg font-semibold text-gray-900">Швидкі дії</h2>
             <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
               <NuxtLink
@@ -227,7 +227,7 @@ export default defineComponent({
         </div>
 
         {/* Останні записи */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Останні записи</h2>
             <NuxtLink to="/diary" class="text-sm font-medium text-brand-600 hover:text-brand-700">

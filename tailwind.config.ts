@@ -14,6 +14,8 @@ export default <Partial<Config>>{
   theme: {
     extend: {
       colors: {
+        // Тепло-зелений фон карток (як у мобільному застосунку)
+        card: '#f2f5eb',
         brand: {
           50: '#eef7ee',
           100: '#d6ecd6',

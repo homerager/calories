@@ -12,7 +12,7 @@ export default defineComponent({
             <div class="w-full border-t border-gray-200" />
           </div>
           <div class="relative flex justify-center text-xs">
-            <span class="bg-white px-2 text-gray-400">або</span>
+            <span class="bg-card px-2 text-gray-400">або</span>
           </div>
         </div>
 

@@ -95,7 +95,7 @@ export default defineComponent({
 
     return () => (
       <section class="mx-auto max-w-lg">
-        <div class="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-8 shadow-sm ring-1 ring-gray-100">
           <div class="flex items-center justify-between">
             <h1 class="text-2xl font-bold text-gray-900">Налаштування профілю</h1>
             <span class="text-sm text-gray-500">

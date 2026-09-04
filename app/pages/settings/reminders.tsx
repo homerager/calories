@@ -130,7 +130,7 @@ export default defineComponent({
         </div>
 
         {/* Push-сповіщення */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Push-сповіщення</h2>
           <p class="mt-1 text-sm text-gray-500">
             Дозвольте браузерні сповіщення, щоб отримувати нагадування навіть коли додаток закрито.
@@ -177,7 +177,7 @@ export default defineComponent({
         </div>
 
         {/* Форма додавання/редагування */}
-        <form class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSubmit}>
+        <form class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSubmit}>
           <h2 class="text-lg font-semibold text-gray-900">
             {editingId.value ? 'Редагувати нагадування' : 'Нове нагадування'}
           </h2>
@@ -292,7 +292,7 @@ export default defineComponent({
         </form>
 
         {/* Список нагадувань */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Ваші нагадування</h2>
 
           {pending.value ? (

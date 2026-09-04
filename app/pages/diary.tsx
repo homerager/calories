@@ -531,7 +531,7 @@ export default defineComponent({
               {norm != null ? ` / ${norm}` : ''} {unit}
             </span>
           </div>
-          <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+          <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200">
             <div
               class={`h-full rounded-full transition-all ${over ? 'bg-red-400' : tint}`}
               style={{ width: `${norm && norm > 0 ? pct : value > 0 ? 100 : 0}%` }}
@@ -649,7 +649,7 @@ export default defineComponent({
         </div>
 
         {/* Прогрес відносно норм */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Прогрес дня</h2>
           <div class="mt-4 space-y-3">
             {progressBar('Калорії', totals.value.totalKcal, norms.value.dailyKcal, 'ккал', 'bg-brand-500')}
@@ -667,7 +667,7 @@ export default defineComponent({
         </div>
 
         {/* Додавання */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Додати їжу</h2>
 
           <div class="mt-4 flex flex-wrap gap-2">
@@ -939,7 +939,7 @@ export default defineComponent({
         </div>
 
         {/* Записи дня */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">Записи</h2>
             <span class="text-sm text-gray-500">

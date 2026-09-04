@@ -186,7 +186,7 @@ export default defineComponent({
           Перейти до вмісту
         </a>
 
-        <header class="border-b border-gray-200 bg-white">
+        <header class="border-b border-gray-200 bg-card">
           <div class="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
             <NuxtLink to="/" class="text-lg font-semibold text-brand-700">
               Calories
@@ -461,7 +461,7 @@ export default defineComponent({
 
         {loggedIn.value ? (
           <nav
-            class="bottom-mobile-navigation fixed inset-x-0 bottom-0 z-30 flex border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
+            class="bottom-mobile-navigation fixed inset-x-0 bottom-0 z-30 flex border-t border-gray-200 bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
             aria-label="Нижня навігація"
           >
             {drawerPrimary.map((item) => {

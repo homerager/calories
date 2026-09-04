@@ -225,7 +225,7 @@ export default defineComponent({
               return (
                 <div
                   key={day.dayIndex}
-                  class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100"
+                  class="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-gray-100"
                 >
                   <div class="flex items-baseline justify-between gap-2">
                     <h2 class="text-lg font-semibold text-gray-900">
@@ -262,7 +262,7 @@ export default defineComponent({
                       <li key={meal.id} class="flex items-center gap-3 py-2.5">
                         <div class="min-w-0 flex-1">
                           <div class="flex items-center gap-2">
-                            <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
+                            <span class="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-[11px] text-gray-600">
                               {SLOT_LABELS[meal.slot]}
                             </span>
                             <button
@@ -320,7 +320,7 @@ export default defineComponent({
               role="dialog"
               aria-modal="true"
               aria-labelledby="dish-details-title"
-              class="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+              class="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-card p-6 shadow-xl"
               onClick={(e: MouseEvent) => e.stopPropagation()}
             >
               <div class="flex items-start justify-between gap-3">

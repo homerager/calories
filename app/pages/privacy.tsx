@@ -135,7 +135,7 @@ export default defineComponent({
           <p class="mt-1 text-sm text-gray-500">Оновлено {UPDATED_AT}</p>
         </div>
 
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100 sm:p-8">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100 sm:p-8">
           <div class="space-y-8 text-sm leading-relaxed text-gray-700">
             {sections.map((section) => (
               <section key={section.id} aria-labelledby={section.id}>

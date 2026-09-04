@@ -77,7 +77,7 @@ export default defineComponent({
           <p class="mt-1 text-sm text-gray-500">Зміна пароля та видалення даних.</p>
         </div>
 
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Пароль</h2>
           {pwdError.value && (
             <div class="mt-3">
@@ -132,7 +132,7 @@ export default defineComponent({
           </form>
         </div>
 
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-red-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-red-100">
           <h2 class="text-lg font-semibold text-red-800">Видалити акаунт</h2>
           <p class="mt-1 text-sm text-gray-600">
             Буде стерто щоденник, профіль, меню та ключі AI. Цю дію не можна скасувати. Деталі — у{' '}

@@ -134,7 +134,7 @@ export default defineComponent({
         </div>
 
         {/* Норми */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Добові норми</h2>
           {hasNorms.value ? (
             <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -151,7 +151,7 @@ export default defineComponent({
         </div>
 
         {/* Форма профілю */}
-        <form class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSubmit}>
+        <form class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100" onSubmit={onSubmit}>
           <h2 class="text-lg font-semibold text-gray-900">Особисті дані</h2>
 
           <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -331,7 +331,7 @@ export default defineComponent({
         </form>
 
         {/* Історія зважувань */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h2 class="text-lg font-semibold text-gray-900">Історія ваги</h2>
             <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-500">

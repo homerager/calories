@@ -31,7 +31,7 @@ function progressBar(
           {norm != null && norm > 0 && <span class="ml-1 text-gray-400">({pct}%)</span>}
         </span>
       </div>
-      <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+      <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200">
         <div
           class={`h-full rounded-full transition-all ${over ? 'bg-red-400' : tint}`}
           style={{ width: `${norm && norm > 0 ? pct : value > 0 ? 100 : 0}%` }}
@@ -146,7 +146,7 @@ export default defineComponent({
         </div>
 
         {/* Прогрес відносно норм */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <div class="flex items-baseline justify-between">
             <h2 class="text-lg font-semibold text-gray-900">{macrosLabel.value}</h2>
             {!isDay.value && (
@@ -237,7 +237,7 @@ export default defineComponent({
 
         {/* Графік добових калорій: спожито + спалено */}
         {!isDay.value && (
-          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
             <h2 class="text-lg font-semibold text-gray-900">Калорії по днях</h2>
             <div class="mt-4">
               {pending.value && days.value.length === 0 ? (
@@ -251,7 +251,7 @@ export default defineComponent({
 
         {/* Графік калорій активності */}
         {!isDay.value && (
-          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
             <div class="flex items-baseline justify-between">
               <h2 class="text-lg font-semibold text-gray-900">Активність по днях</h2>
               <span class="text-sm text-gray-500">
@@ -271,7 +271,7 @@ export default defineComponent({
 
         {/* Графік вживання води */}
         {!isDay.value && (
-          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
             <h2 class="text-lg font-semibold text-gray-900">Вода по днях</h2>
             <div class="mt-4">
               {pending.value && days.value.length === 0 ? (
@@ -284,7 +284,7 @@ export default defineComponent({
         )}
 
         {/* Динаміка ваги */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h2 class="text-lg font-semibold text-gray-900">Динаміка ваги</h2>
             <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-500">
@@ -308,7 +308,7 @@ export default defineComponent({
        
 
         {/* Зведені показники за період */}
-        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div class="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-gray-100">
           <h2 class="text-lg font-semibold text-gray-900">Підсумок періоду</h2>
           <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {statCard('Спожито всього', `${Math.round(totals.value.kcal)}`, 'ккал')}
