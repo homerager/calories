@@ -70,6 +70,18 @@ export interface ItemDetailsResponse {
   usingFallback?: boolean
 }
 
+/** Знайдена страва з довідника / особистої бази (пошук на сторінці меню). */
+export interface DishSearchHit {
+  id: string
+  name: string
+  kcalPer100: number
+  proteinPer100: number
+  fatPer100: number
+  carbPer100: number
+  similarity: number | null
+  match: 'exact' | 'lexical' | 'semantic'
+}
+
 export function useMenu() {
   const requestFetch = useRequestFetch()
 
@@ -132,11 +144,34 @@ export function useMenu() {
     })
   }
 
-  /** Деталі страви (інгредієнти/кроки). Перший запит — AI, далі — кеш. */
+  /** Деталі страви меню (інгредієнти/кроки). Перший запит — AI, далі — кеш. */
   function fetchItemDetails(itemId: string): Promise<ItemDetailsResponse> {
     return $fetch<ItemDetailsResponse>('/api/menu/item-details', {
       method: 'POST',
       body: { itemId },
+    })
+  }
+
+  /** Пошук страви в довіднику + особистій базі (лексика + семантика). */
+  function searchDishes(q: string, limit = 12): Promise<{ items: DishSearchHit[] }> {
+    return $fetch<{ items: DishSearchHit[] }>('/api/food-items/search', {
+      query: { q, limit },
+    })
+  }
+
+  /** Деталі знайденої страви за foodItemId. Перший запит — AI, далі — кеш. */
+  function fetchDishDetails(foodItemId: string): Promise<ItemDetailsResponse> {
+    return $fetch<ItemDetailsResponse>('/api/menu/dish-details', {
+      method: 'POST',
+      body: { foodItemId },
+    })
+  }
+
+  /** Рецепт за вільною назвою (страви немає в довіднику) — генерує AI. */
+  function fetchRecipeByName(name: string): Promise<ItemDetailsResponse> {
+    return $fetch<ItemDetailsResponse>('/api/menu/dish-details', {
+      method: 'POST',
+      body: { name },
     })
   }
 
@@ -150,5 +185,8 @@ export function useMenu() {
     applyDay,
     applyItem,
     fetchItemDetails,
+    searchDishes,
+    fetchDishDetails,
+    fetchRecipeByName,
   }
 }

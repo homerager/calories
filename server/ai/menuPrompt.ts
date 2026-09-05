@@ -204,7 +204,12 @@ export const DISH_DETAILS_SYSTEM_PROMPT = `Ти — кухар-нутриціо�
 
 /** Будує користувацький промпт для деталей страви. */
 export function dishDetailsUserPrompt(input: DishDetailsInput): string {
-  return `Страва: "${input.name}". Порція: ${Math.round(input.portionGrams)} г, орієнтовно ${Math.round(input.kcal)} ккал (Б ${input.protein} / Ж ${input.fat} / В ${input.carb}). Дай інгредієнти на цю порцію, стислі кроки приготування та одну коротку пораду.`
+  // Макроси відомі лише для страв із довідника; для вільної назви їх немає.
+  const portion =
+    input.kcal > 0
+      ? `Порція: ${Math.round(input.portionGrams)} г, орієнтовно ${Math.round(input.kcal)} ккал (Б ${input.protein} / Ж ${input.fat} / В ${input.carb}).`
+      : `Порція: ${Math.round(input.portionGrams)} г.`
+  return `Страва: "${input.name}". ${portion} Дай інгредієнти на цю порцію, стислі кроки приготування та одну коротку пораду.`
 }
 
 /** Назва структури/інструмента для деталей страви. */

@@ -47,3 +47,20 @@ export const menuItemDetailsSchema = z.object({
 })
 
 export type MenuItemDetailsInput = z.infer<typeof menuItemDetailsSchema>
+
+/**
+ * Запит деталей страви на сторінці меню: або за id довідника (`foodItemId`),
+ * або за вільною назвою (`name`) — тоді рецепт генерує AI.
+ */
+export const dishDetailsLookupSchema = z
+  .object({
+    foodItemId: z.string().min(1).optional(),
+    name: z.string().trim().min(2, 'Надто коротка назва').max(200, 'Задовга назва').optional(),
+    provider: menuAiProviderSchema.optional(),
+  })
+  .refine((d) => Boolean(d.foodItemId) || Boolean(d.name), {
+    message: 'Вкажіть foodItemId або name',
+    path: ['name'],
+  })
+
+export type DishDetailsLookupInput = z.infer<typeof dishDetailsLookupSchema>

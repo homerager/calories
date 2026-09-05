@@ -1,9 +1,16 @@
-import { defineComponent, computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { defineComponent, computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { DishName, EmptyState, ErrorBanner, LoadingState, NuxtLink } from '#components'
-import { useMenu, type DishDetails, type MenuItem, type MenuSlot } from '~/composables/useMenu'
+import {
+  useMenu,
+  type DishDetails,
+  type DishSearchHit,
+  type ItemDetailsResponse,
+  type MenuItem,
+  type MenuSlot,
+} from '~/composables/useMenu'
 import { useToast } from '~/composables/useToast'
 import { shiftIso } from '~/utils/day'
-import { btnPrimaryClass } from '~/utils/ui'
+import { btnPrimaryClass, inputClass } from '~/utils/ui'
 
 const SLOT_LABELS: Record<MenuSlot, string> = {
   BREAKFAST: 'Сніданок',
@@ -46,8 +53,19 @@ export default defineComponent({
   setup() {
     definePageMeta({ middleware: 'auth' })
 
-    const { plan, norms, pending, generate, regenerateDay, applyDay, applyItem, fetchItemDetails } =
-      useMenu()
+    const {
+      plan,
+      norms,
+      pending,
+      generate,
+      regenerateDay,
+      applyDay,
+      applyItem,
+      fetchItemDetails,
+      searchDishes,
+      fetchDishDetails,
+      fetchRecipeByName,
+    } = useMenu()
     const toast = useToast()
 
     const generating = ref(false)
@@ -57,19 +75,27 @@ export default defineComponent({
     // dayIndex дня, що зараз перегенеровується (null — жоден).
     const regeneratingDay = ref<number | null>(null)
 
-    // Модалка деталей страви.
-    const detailsItem = ref<MenuItem | null>(null)
+    // Модалка деталей страви (спільна для страв меню й знайдених через пошук).
+    const detailsOpen = ref(false)
+    const detailsTitle = ref('')
+    const detailsSubtitle = ref('')
     const detailsData = ref<DishDetails | null>(null)
     const detailsPending = ref(false)
     const detailsError = ref<string | null>(null)
 
-    async function openDetails(meal: MenuItem) {
-      detailsItem.value = meal
+    async function runDetails(
+      title: string,
+      subtitle: string,
+      loader: () => Promise<ItemDetailsResponse>,
+    ) {
+      detailsOpen.value = true
+      detailsTitle.value = title
+      detailsSubtitle.value = subtitle
       detailsData.value = null
       detailsError.value = null
       detailsPending.value = true
       try {
-        const res = await fetchItemDetails(meal.id)
+        const res = await loader()
         detailsData.value = res.details
       } catch (err: unknown) {
         detailsError.value = extractErrorMessage(err) ?? 'Не вдалося завантажити деталі'
@@ -78,8 +104,26 @@ export default defineComponent({
       }
     }
 
+    function openDetails(meal: MenuItem) {
+      const sub = `${SLOT_LABELS[meal.slot]} · ${Math.round(meal.portionGrams)} г · ${Math.round(
+        meal.kcal,
+      )} ккал · Б ${roundMacro(meal.protein)} · Ж ${roundMacro(meal.fat)} · В ${roundMacro(meal.carb)}`
+      void runDetails(meal.name, sub, () => fetchItemDetails(meal.id))
+    }
+
+    function openDishDetails(hit: DishSearchHit) {
+      const sub = `${Math.round(hit.kcalPer100)} ккал/100 г · Б ${roundMacro(
+        hit.proteinPer100,
+      )} · Ж ${roundMacro(hit.fatPer100)} · В ${roundMacro(hit.carbPer100)}`
+      void runDetails(hit.name, sub, () => fetchDishDetails(hit.id))
+    }
+
+    function openRecipeByName(name: string) {
+      void runDetails(name, 'AI-рецепт за назвою', () => fetchRecipeByName(name))
+    }
+
     function closeDetails() {
-      detailsItem.value = null
+      detailsOpen.value = false
       detailsData.value = null
       detailsError.value = null
     }
@@ -88,8 +132,41 @@ export default defineComponent({
       if (event.key === 'Escape') closeDetails()
     }
 
+    // Пошук страви в довіднику + особистій базі (з рецептом).
+    const searchTerm = ref('')
+    const searchHits = ref<DishSearchHit[]>([])
+    const searchPending = ref(false)
+    let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+    watch(searchTerm, (value) => {
+      if (searchTimer) clearTimeout(searchTimer)
+      const term = value.trim()
+      if (term.length < 2) {
+        searchHits.value = []
+        searchPending.value = false
+        return
+      }
+      searchPending.value = true
+      searchTimer = setTimeout(async () => {
+        try {
+          const res = await searchDishes(term)
+          // Семантичні збіги з низькою схожістю — шум (малий довідник): лишаємо впевнені.
+          searchHits.value = res.items.filter(
+            (h) => h.match !== 'semantic' || (h.similarity ?? 0) >= 0.55,
+          )
+        } catch {
+          searchHits.value = []
+        } finally {
+          searchPending.value = false
+        }
+      }, 280)
+    })
+
     onMounted(() => document.addEventListener('keydown', onDetailsKeydown))
-    onBeforeUnmount(() => document.removeEventListener('keydown', onDetailsKeydown))
+    onBeforeUnmount(() => {
+      document.removeEventListener('keydown', onDetailsKeydown)
+      if (searchTimer) clearTimeout(searchTimer)
+    })
 
     const days = computed<DayGroup[]>(() => {
       const p = plan.value
@@ -213,6 +290,62 @@ export default defineComponent({
           </ErrorBanner>
         )}
 
+        {/* Пошук страви з рецептом */}
+        <div class="rounded-xl bg-card md:p-6 p-5 shadow-card">
+          <h2 class="text-lg font-semibold text-gray-900">Знайти страву</h2>
+          <p class="mt-1 text-sm text-gray-500">
+            Пошук у довіднику та ваших стравах — з інгредієнтами й кроками приготування.
+          </p>
+          <input
+            type="search"
+            value={searchTerm.value}
+            onInput={(e) => (searchTerm.value = (e.target as HTMLInputElement).value)}
+            class={`${inputClass} mt-3`}
+            placeholder="напр. борщ, сирники, паста карбонара"
+            autocomplete="off"
+          />
+          {searchTerm.value.trim().length >= 2 && (
+            <div class="mt-3 space-y-3">
+              <button
+                type="button"
+                onClick={() => openRecipeByName(searchTerm.value.trim())}
+                class="w-full rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-left text-sm font-medium text-brand-700 transition hover:bg-brand-100"
+              >
+                🍳 Отримати рецепт для «{searchTerm.value.trim()}»
+              </button>
+
+              {searchPending.value ? (
+                <LoadingState />
+              ) : searchHits.value.length === 0 ? (
+                <p class="text-sm text-gray-500">
+                  У довіднику збігів немає — скористайтесь кнопкою вище, щоб отримати рецепт.
+                </p>
+              ) : (
+                <ul class="divide-y divide-gray-100">
+                  {searchHits.value.map((hit) => (
+                    <li key={hit.id} class="flex items-center gap-3 py-2.5">
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate font-medium text-gray-900">{hit.name}</div>
+                        <div class="mt-0.5 text-xs text-gray-500">
+                          {Math.round(hit.kcalPer100)} ккал/100 г · Б {roundMacro(hit.proteinPer100)} · Ж{' '}
+                          {roundMacro(hit.fatPer100)} · В {roundMacro(hit.carbPer100)}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openDishDetails(hit)}
+                        class="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-700"
+                      >
+                        Рецепт
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+
         {pending.value && !plan.value ? (
           <LoadingState />
         ) : !plan.value ? (
@@ -311,7 +444,7 @@ export default defineComponent({
           </div>
         )}
 
-        {detailsItem.value ? (
+        {detailsOpen.value ? (
           <div
             class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
             onClick={closeDetails}
@@ -325,12 +458,8 @@ export default defineComponent({
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <h3 id="dish-details-title" class="text-lg font-semibold text-gray-900">{detailsItem.value.name}</h3>
-                  <p class="mt-0.5 text-xs text-gray-500">
-                    {SLOT_LABELS[detailsItem.value.slot]} · {Math.round(detailsItem.value.portionGrams)}{' '}
-                    г · {Math.round(detailsItem.value.kcal)} ккал · Б {roundMacro(detailsItem.value.protein)}{' '}
-                    · Ж {roundMacro(detailsItem.value.fat)} · В {roundMacro(detailsItem.value.carb)}
-                  </p>
+                  <h3 id="dish-details-title" class="text-lg font-semibold text-gray-900">{detailsTitle.value}</h3>
+                  <p class="mt-0.5 text-xs text-gray-500">{detailsSubtitle.value}</p>
                 </div>
                 <button
                   type="button"

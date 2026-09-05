@@ -1,5 +1,5 @@
-import { computed, defineComponent, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { EmptyState, ErrorBanner, FoodSuggestions, LoadingState, NuxtLink } from '#components'
+import { computed, defineComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { BarcodeScanner, EmptyState, ErrorBanner, FoodSuggestions, LoadingState, NuxtLink } from '#components'
 import { compressImage } from '~/utils/image'
 import {
   useDiary,
@@ -94,6 +94,7 @@ export default defineComponent({
       pending,
       recognizeText,
       recognizeImage,
+      lookupBarcode,
       saveMeal,
       updateMeal,
       deleteMeal,
@@ -122,7 +123,7 @@ export default defineComponent({
       }))
     })
 
-    const tab = ref<'text' | 'photo' | 'mine'>('text')
+    const tab = ref<'text' | 'photo' | 'barcode' | 'mine'>('text')
 
     // Особиста база страв (лениво завантажується при першому відкритті вкладки).
     const myDishes = ref<MyDish[]>([])
@@ -150,7 +151,7 @@ export default defineComponent({
 
     const visibleDishes = computed(() => dishHits.value ?? myDishes.value)
 
-    function selectTab(next: 'text' | 'photo' | 'mine') {
+    function selectTab(next: 'text' | 'photo' | 'barcode' | 'mine') {
       tab.value = next
       if (next === 'mine') void loadMyDishes()
     }
@@ -314,13 +315,18 @@ export default defineComponent({
       per100: null,
     })
     const draftVisible = ref(false)
-    const draftMeta = ref<{ cacheHit: boolean; usingFallback: boolean } | null>(null)
+    const draftMeta = ref<{ cacheHit: boolean; usingFallback: boolean; barcode?: boolean } | null>(
+      null,
+    )
     const saving = ref(false)
     // Коли задано — редагуємо наявний запис, а не створюємо новий.
     const editingId = ref<string | null>(null)
     const editorRef = ref<HTMLDivElement | null>(null)
 
-    function fillDraft(d: RecognizeDraft, meta: { cacheHit: boolean; usingFallback: boolean } | null) {
+    function fillDraft(
+      d: RecognizeDraft,
+      meta: { cacheHit: boolean; usingFallback: boolean; barcode?: boolean } | null,
+    ) {
       draft.name = d.name
       draft.portionGrams = d.portionGrams
       draft.kcal = d.kcal
@@ -437,6 +443,41 @@ export default defineComponent({
         recognizing.value = false
         target.value = ''
       }
+    }
+
+    // Штрихкод: ручний ввід + камерне сканування (нативний BarcodeDetector).
+    const barcodeInput = ref('')
+    const barcodeError = ref<string | null>(null)
+    const barcodeLoading = ref(false)
+    const scannerOpen = ref(false)
+    const barcodeSupported = ref(false)
+    onMounted(() => {
+      barcodeSupported.value = typeof window !== 'undefined' && 'BarcodeDetector' in window
+    })
+
+    async function onLookupBarcode(raw?: string) {
+      const code = (raw ?? barcodeInput.value).replace(/\D/g, '')
+      if (code.length < 6) {
+        barcodeError.value = 'Введіть штрихкод (мінімум 6 цифр)'
+        return
+      }
+      barcodeInput.value = code
+      barcodeLoading.value = true
+      barcodeError.value = null
+      try {
+        const res = await lookupBarcode(code)
+        fillDraft(res.draft, { cacheHit: false, usingFallback: false, barcode: true })
+        nextTick(() => editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+      } catch (err: unknown) {
+        barcodeError.value = extractErrorMessage(err) ?? 'Не вдалося знайти продукт за штрихкодом'
+      } finally {
+        barcodeLoading.value = false
+      }
+    }
+
+    function onScanDetected(code: string) {
+      scannerOpen.value = false
+      void onLookupBarcode(code)
     }
 
     async function onSaveDraft() {
@@ -689,6 +730,14 @@ export default defineComponent({
             </button>
             <button
               type="button"
+              onClick={() => selectTab('barcode')}
+              aria-pressed={tab.value === 'barcode'}
+              class={tab.value === 'barcode' ? btnTabActiveClass : btnTabIdleClass}
+            >
+              Штрихкод
+            </button>
+            <button
+              type="button"
               onClick={() => selectTab('mine')}
               aria-pressed={tab.value === 'mine'}
               class={tab.value === 'mine' ? btnTabActiveClass : btnTabIdleClass}
@@ -815,7 +864,7 @@ export default defineComponent({
                 {recognizing.value ? 'Розпізнаємо…' : 'Розпізнати'}
               </button>
             </div>
-          ) : (
+          ) : tab.value === 'photo' ? (
             <div class="mt-4">
               <input
                 ref={fileInput}
@@ -829,6 +878,56 @@ export default defineComponent({
               <p class="mt-2 text-xs text-gray-500">
                 Фото стискається на пристрої перед відправкою. {recognizing.value && 'Розпізнаємо…'}
               </p>
+            </div>
+          ) : (
+            <div class="mt-4 space-y-3">
+              <div class="flex flex-wrap items-end gap-3">
+                <div class="min-w-0 w-full md:w-auto md:flex-1">
+                  <label class={labelClass} for="barcodeInput">Штрихкод продукту</label>
+                  <input
+                    id="barcodeInput"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    value={barcodeInput.value}
+                    onInput={(e) => (barcodeInput.value = (e.target as HTMLInputElement).value)}
+                    onKeydown={(e: KeyboardEvent) => {
+                      if (e.key === 'Enter') void onLookupBarcode()
+                    }}
+                    class={inputClass}
+                    placeholder="напр. 4820000000000"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void onLookupBarcode()}
+                  disabled={barcodeLoading.value}
+                  aria-busy={barcodeLoading.value}
+                  class={btnPrimaryClass}
+                >
+                  {barcodeLoading.value ? 'Шукаємо…' : 'Знайти'}
+                </button>
+                {barcodeSupported.value && !scannerOpen.value && (
+                  <button
+                    type="button"
+                    onClick={() => (scannerOpen.value = true)}
+                    class={btnSecondaryClass}
+                  >
+                    Сканувати камерою
+                  </button>
+                )}
+              </div>
+              <p class="text-xs text-gray-500">
+                Дані з відкритої бази Open Food Facts. Перевіряйте поживність — записи бувають
+                неповні.
+              </p>
+              {scannerOpen.value && (
+                <BarcodeScanner
+                  onDetected={onScanDetected}
+                  onClose={() => (scannerOpen.value = false)}
+                />
+              )}
+              {barcodeError.value && <ErrorBanner message={barcodeError.value} />}
             </div>
           )}
 
@@ -852,6 +951,9 @@ export default defineComponent({
                 <div class="flex items-center gap-2 text-xs">
                   {draftMeta.value?.cacheHit && (
                     <span class="rounded-full bg-gray-200 px-2 py-0.5 text-gray-600">З довідника</span>
+                  )}
+                  {draftMeta.value?.barcode && (
+                    <span class="rounded-full bg-gray-200 px-2 py-0.5 text-gray-600">Зі штрихкоду</span>
                   )}
                   {draftMeta.value?.usingFallback && (
                     <span class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">Сервісний ключ</span>

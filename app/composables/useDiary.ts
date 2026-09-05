@@ -51,6 +51,14 @@ export interface RecognizeResponse {
   draft: RecognizeDraft
 }
 
+/** Відповідь лукапу продукту за штрихкодом (Open Food Facts). */
+export interface BarcodeLookupResponse {
+  found: boolean
+  barcode: string
+  product: { name: string; brand: string | null; imageUrl: string | null }
+  draft: RecognizeDraft
+}
+
 /** Тіло для збереження запису (POST /api/meals). */
 export interface MealCreatePayload {
   date?: string
@@ -162,6 +170,11 @@ export function useDiary() {
     })
   }
 
+  /** Лукап продукту за штрихкодом (Open Food Facts) → чернетка запису. */
+  function lookupBarcode(code: string): Promise<BarcodeLookupResponse> {
+    return $fetch<BarcodeLookupResponse>(`/api/food/barcode/${encodeURIComponent(code)}`)
+  }
+
   /** Розпізнавання за фото (base64 без префіксу). */
   function recognizeImage(
     imageBase64: string,
@@ -230,6 +243,7 @@ export function useDiary() {
     pending,
     recognizeText,
     recognizeImage,
+    lookupBarcode,
     saveMeal,
     updateMeal,
     deleteMeal,
