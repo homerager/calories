@@ -91,7 +91,7 @@ export default defineComponent({
   setup() {
     definePageMeta({ middleware: 'auth' })
 
-    const { items, pending, fetchRecipe, updateRecipe } = useRecipes()
+    const { items, pending, fetchRecipe, updateRecipe, generateRecipe } = useRecipes()
     const toast = useToast()
 
     const query = ref('')
@@ -99,6 +99,8 @@ export default defineComponent({
     const detail = ref<RecipeItem | null>(null)
     const detailPending = ref(false)
     const detailError = ref<string | null>(null)
+    const generating = ref(false)
+    const generateError = ref<string | null>(null)
     const editing = ref(false)
     const form = reactive<EditForm>(emptyForm())
     const saving = ref(false)
@@ -121,8 +123,12 @@ export default defineComponent({
         ?? 'Страва',
     )
 
+    const hasRecipe = computed(() => Boolean(detail.value?.details?.ingredients.length))
+
     watch(selectedId, async (id) => {
       editing.value = false
+      generating.value = false
+      generateError.value = null
       detail.value = null
       detailError.value = null
       if (!id) return
@@ -145,6 +151,8 @@ export default defineComponent({
       selectedId.value = null
       detail.value = null
       detailError.value = null
+      generateError.value = null
+      generating.value = false
       editing.value = false
     }
 
@@ -234,6 +242,24 @@ export default defineComponent({
       }
     }
 
+    async function onGenerateRecipe() {
+      const r = detail.value
+      if (!r || generating.value) return
+      generating.value = true
+      generateError.value = null
+      try {
+        const recipe = await generateRecipe(r.id)
+        if (selectedId.value !== r.id) return
+        detail.value = recipe
+        Object.assign(form, formFromRecipe(recipe))
+        toast.success('Рецепт згенеровано')
+      } catch (err: unknown) {
+        generateError.value = extractErrorMessage(err) ?? 'Не вдалося згенерувати рецепт'
+      } finally {
+        generating.value = false
+      }
+    }
+
     async function onAddToDiary() {
       const r = detail.value
       if (!r) return
@@ -274,11 +300,11 @@ export default defineComponent({
         <div>
           <h1 class="text-2xl font-bold text-gray-900">Страви</h1>
           <p class="mt-1 text-sm text-gray-500">
-            Спільна база страв із тижневих меню. Рецепт зʼявляється після відкриття деталей у{' '}
+            Спільна база страв із тижневих меню. Рецепт можна згенерувати тут або відкривши страву в{' '}
             <NuxtLink to="/menu" class="font-medium text-brand-700 hover:text-brand-800">
               меню
             </NuxtLink>
-            {' '}або кнопки «Зберегти в каталог».
+            .
           </p>
         </div>
 
@@ -329,7 +355,7 @@ export default defineComponent({
 
         {selectedId.value ? (
           <div
-            class="fixed inset-0 z-40 flex items-center justify-center mt-0 bg-black/40 p-4"
+            class="fixed inset-0 z-40 flex items-center justify-center !mt-0 bg-black/40 p-4"
             onClick={closeDetails}
           >
             <div
@@ -372,7 +398,7 @@ export default defineComponent({
                         {saving.value ? 'Зберігаємо…' : 'Зберегти'}
                       </button>
                     </>
-                  ) : detail.value && !detailPending.value && !detailError.value ? (
+                  ) : detail.value && !detailPending.value && !detailError.value && !generating.value ? (
                     <button type="button" class={btnSecondaryClass} onClick={startEdit}>
                       Редагувати
                     </button>
@@ -456,9 +482,11 @@ export default defineComponent({
                           </li>
                         ))}
                       </ul>
-                    ) : detail.value.details?.ingredients.length ? (
+                    ) : generating.value ? (
+                      <LoadingState message="Готуємо рецепт…" />
+                    ) : hasRecipe.value ? (
                       <ul class="mt-2 space-y-1">
-                        {detail.value.details.ingredients.map((ing, i) => (
+                        {detail.value.details!.ingredients.map((ing, i) => (
                           <li key={i} class="flex justify-between gap-3 text-sm text-gray-700">
                             <span>{ing.name}</span>
                             {ing.amount ? <span class="shrink-0 text-gray-500">{ing.amount}</span> : null}
@@ -466,7 +494,27 @@ export default defineComponent({
                         ))}
                       </ul>
                     ) : (
-                      <p class="mt-2 text-sm text-gray-500">Рецепт ще не згенеровано — відкрийте страву в меню.</p>
+                      <div class="mt-2 space-y-3">
+                        <p class="text-sm text-gray-500">Рецепт ще не згенеровано.</p>
+                        {generateError.value ? (
+                          <ErrorBanner message={generateError.value}>
+                            <NuxtLink
+                              to="/settings/ai-keys"
+                              class="mt-1 inline-block font-medium text-red-900 underline"
+                            >
+                              Перейти до налаштувань AI
+                            </NuxtLink>
+                          </ErrorBanner>
+                        ) : null}
+                        <button
+                          type="button"
+                          class={btnPrimaryClass}
+                          disabled={generating.value}
+                          onClick={() => void onGenerateRecipe()}
+                        >
+                          Згенерувати рецепт
+                        </button>
+                      </div>
                     )}
                     {editing.value ? (
                       <button type="button" class={`${btnGhostClass} mt-2`} onClick={addIngredient}>
@@ -475,44 +523,46 @@ export default defineComponent({
                     ) : null}
                   </div>
 
-                  <div>
-                    <h4 class="text-sm font-semibold text-gray-800">Приготування</h4>
-                    {editing.value ? (
-                      <ol class="mt-2 space-y-2">
-                        {form.steps.map((step, i) => (
-                          <li key={i} class="flex gap-2">
-                            <span class="mt-2 w-5 shrink-0 text-sm text-gray-400">{i + 1}.</span>
-                            <textarea
-                              class={inputClassCompact + ' min-h-16 flex-1'}
-                              value={step}
-                              onInput={(e) => (form.steps[i] = (e.target as HTMLTextAreaElement).value)}
-                            />
-                            <button
-                              type="button"
-                              class={btnGhostClass}
-                              onClick={() => removeStep(i)}
-                              aria-label="Прибрати крок"
-                            >
-                              ✕
-                            </button>
-                          </li>
-                        ))}
-                      </ol>
-                    ) : detail.value.details?.steps.length ? (
-                      <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
-                        {detail.value.details.steps.map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ol>
-                    ) : (
-                      <p class="mt-2 text-sm text-gray-500">Кроків немає.</p>
-                    )}
-                    {editing.value ? (
-                      <button type="button" class={`${btnGhostClass} mt-2`} onClick={addStep}>
-                        + Крок
-                      </button>
-                    ) : null}
-                  </div>
+                  {editing.value || hasRecipe.value ? (
+                    <div>
+                      <h4 class="text-sm font-semibold text-gray-800">Приготування</h4>
+                      {editing.value ? (
+                        <ol class="mt-2 space-y-2">
+                          {form.steps.map((step, i) => (
+                            <li key={i} class="flex gap-2">
+                              <span class="mt-2 w-5 shrink-0 text-sm text-gray-400">{i + 1}.</span>
+                              <textarea
+                                class={inputClassCompact + ' min-h-16 flex-1'}
+                                value={step}
+                                onInput={(e) => (form.steps[i] = (e.target as HTMLTextAreaElement).value)}
+                              />
+                              <button
+                                type="button"
+                                class={btnGhostClass}
+                                onClick={() => removeStep(i)}
+                                aria-label="Прибрати крок"
+                              >
+                                ✕
+                              </button>
+                            </li>
+                          ))}
+                        </ol>
+                      ) : detail.value.details?.steps.length ? (
+                        <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                          {detail.value.details.steps.map((s, i) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p class="mt-2 text-sm text-gray-500">Кроків немає.</p>
+                      )}
+                      {editing.value ? (
+                        <button type="button" class={`${btnGhostClass} mt-2`} onClick={addStep}>
+                          + Крок
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {editing.value ? (
                     <div>

@@ -99,11 +99,20 @@ export function useRecipes() {
     return $fetch<{ recipe: RecipeItem }>(`/api/recipes/${id}`)
   }
 
+  async function generateRecipe(id: string): Promise<RecipeItem> {
+    const res = await $fetch<{ recipe: RecipeItem }>(`/api/recipes/${id}/generate`, {
+      method: 'POST',
+    })
+    await refresh()
+    return res.recipe
+  }
+
   return {
     items,
     pending,
     refresh,
     updateRecipe,
     fetchRecipe,
+    generateRecipe,
   }
 }
