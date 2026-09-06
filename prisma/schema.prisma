@@ -224,6 +224,7 @@ model FoodItem {
   owner       User?          @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
   mealEntries MealEntry[]
   menuItems   MenuItem[]
+  menuDishes  MenuDish[]
   favorites   FoodFavorite[]
 
   @@index([name])
@@ -405,6 +406,29 @@ model MenuItem {
   foodItem FoodItem? @relation(fields: [foodItemId], references: [id], onDelete: SetNull)
 
   @@index([planId, dayIndex])
+  @@index([foodItemId])
+}
+
+// Глобальний каталог страв (спільний для всіх користувачів).
+// Поля як у MenuItem (порція + БЖВ + рецепт), без привʼязки до тижневого плану.
+model MenuDish {
+  id             String    @id @default(cuid())
+  name           String
+  normalizedKey  String    @unique
+  slot           MealSlot?
+  portionGrams   Float
+  kcal           Float
+  protein        Float
+  fat            Float
+  carb           Float
+  detailsJson    Json?
+  foodItemId     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  foodItem FoodItem? @relation(fields: [foodItemId], references: [id], onDelete: SetNull)
+
+  @@index([name])
   @@index([foodItemId])
 }
 

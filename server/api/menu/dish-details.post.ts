@@ -3,11 +3,12 @@ import { dishDetailsLookupSchema } from '../../utils/menuSchemas'
 import { findAccessibleFoodByKey, foodVisibilityWhere } from '../../utils/foodItem'
 import { normalizeFoodKey } from '../../utils/crypto'
 import { roundKcal, roundMacro } from '../../utils/food'
+import { findMenuDishByName, parseRecipeJson, upsertMenuDish } from '../../utils/recipe'
 import { AiProviderError, generateDishDetails, statusForAiError } from '../../ai'
 import type { DishDetails, DishDetailsInput } from '../../ai'
 
-// Деталі страви для сторінки меню: за id довідника або за вільною назвою (AI-рецепт).
-// Кеш — у памʼяті процесу; деталі не залежать від порції (беремо на 100 г).
+// Деталі страви для сторінки меню: глобальний MenuDish → памʼять процесу → AI.
+
 const detailsCache = new Map<string, DishDetails>()
 const CACHE_MAX = 500
 
@@ -20,7 +21,6 @@ function cacheSet(key: string, value: DishDetails): void {
 }
 
 interface FoodRow {
-  id: string
   name: string
   kcalPer100: number
   proteinPer100: number
@@ -60,9 +60,10 @@ export default defineEventHandler(async (event) => {
 
   const { foodItemId, name, provider } = body.data
 
-  // Резолвимо страву: явний id → рядок довідника за назвою → вільний текст.
   let cacheKey: string
   let aiInput: DishDetailsInput
+  let resolvedName: string
+  let resolvedFoodItemId: string | null = null
 
   if (foodItemId) {
     const food = await prisma.foodItem.findFirst({
@@ -81,17 +82,27 @@ export default defineEventHandler(async (event) => {
     }
     cacheKey = `id:${food.id}`
     aiInput = inputFromFood(food)
+    resolvedName = food.name
+    resolvedFoodItemId = food.id
   } else {
     const key = normalizeFoodKey(name!)
     const match = await findAccessibleFoodByKey(prisma, user.id, key)
     if (match) {
       cacheKey = `id:${match.id}`
       aiInput = inputFromFood(match)
+      resolvedName = match.name
+      resolvedFoodItemId = match.id
     } else {
-      // Немає в довіднику — AI складе рецепт за самою назвою (без орієнтовних макросів).
       cacheKey = `name:${key}`
-      aiInput = { name: name!.trim(), portionGrams: 100, kcal: 0, protein: 0, fat: 0, carb: 0 }
+      resolvedName = name!.trim()
+      aiInput = { name: resolvedName, portionGrams: 100, kcal: 0, protein: 0, fat: 0, carb: 0 }
     }
+  }
+
+  const global = await findMenuDishByName(prisma, resolvedName)
+  const globalDetails = global ? parseRecipeJson(global.detailsJson) : null
+  if (globalDetails) {
+    return { details: globalDetails, cacheHit: true }
   }
 
   const cached = detailsCache.get(cacheKey)
@@ -107,6 +118,16 @@ export default defineEventHandler(async (event) => {
     })
 
     cacheSet(cacheKey, result.data)
+    await upsertMenuDish(prisma, {
+      name: resolvedName,
+      portionGrams: aiInput.portionGrams,
+      kcal: aiInput.kcal,
+      protein: aiInput.protein,
+      fat: aiInput.fat,
+      carb: aiInput.carb,
+      details: result.data,
+      foodItemId: resolvedFoodItemId,
+    })
 
     return {
       details: result.data,

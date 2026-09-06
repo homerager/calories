@@ -6,6 +6,7 @@ import { toPer100 } from '../../utils/food'
 import { menuGenerateSchema } from '../../utils/menuSchemas'
 import { toMenuPlanResponse } from '../../utils/menuResponse'
 import { mapAccessibleFoodsByKeys, resolveFoodItemForMeal } from '../../utils/foodItem'
+import { upsertMenuDishes } from '../../utils/recipe'
 import { AiProviderError, generateWeeklyMenu, statusForAiError } from '../../ai'
 import { scheduleEnsureEmbedding } from '../../ai/embeddings'
 import type { Goal } from '../../../prisma/generated/client/enums'
@@ -111,6 +112,7 @@ export default defineEventHandler(async (event) => {
         }
       }
       await tx.menuItem.createMany({ data: itemsData })
+      await upsertMenuDishes(tx, itemsData)
 
       return tx.menuPlan.findUniqueOrThrow({
         where: { id: createdPlan.id },

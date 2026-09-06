@@ -7,6 +7,7 @@ import { toMenuPlanResponse } from '../../utils/menuResponse'
 import { AiProviderError, generateMenuDay, statusForAiError } from '../../ai'
 import { scheduleEnsureEmbedding } from '../../ai/embeddings'
 import { mapAccessibleFoodsByKeys, resolveFoodItemForMeal } from '../../utils/foodItem'
+import { upsertMenuDishes } from '../../utils/recipe'
 import type { Goal } from '../../../prisma/generated/client/enums'
 
 // Перегенерація меню для одного дня: AI складає новий день з урахуванням норм
@@ -128,6 +129,7 @@ export default defineEventHandler(async (event) => {
         })
       }
       await tx.menuItem.createMany({ data: itemsData })
+      await upsertMenuDishes(tx, itemsData)
 
       // Оновлюємо updatedAt плану.
       await tx.menuPlan.update({ where: { id: plan.id }, data: { updatedAt: new Date() } })

@@ -10,7 +10,8 @@ import {
 } from '~/composables/useMenu'
 import { useToast } from '~/composables/useToast'
 import { shiftIso } from '~/utils/day'
-import { btnPrimaryClass, inputClass } from '~/utils/ui'
+import { saveRecipe } from '~/composables/useRecipes'
+import { btnPrimaryClass, btnSecondaryClass, inputClass } from '~/utils/ui'
 
 const SLOT_LABELS: Record<MenuSlot, string> = {
   BREAKFAST: 'Сніданок',
@@ -82,6 +83,18 @@ export default defineComponent({
     const detailsData = ref<DishDetails | null>(null)
     const detailsPending = ref(false)
     const detailsError = ref<string | null>(null)
+    const savingRecipe = ref(false)
+    const recipeDraft = ref<{
+      name: string
+      slot?: MenuSlot
+      portionGrams: number
+      kcal: number
+      protein: number
+      fat: number
+      carb: number
+      foodItemId: string | null
+      menuItemId?: string
+    } | null>(null)
 
     async function runDetails(
       title: string,
@@ -105,6 +118,17 @@ export default defineComponent({
     }
 
     function openDetails(meal: MenuItem) {
+      recipeDraft.value = {
+        name: meal.name,
+        slot: meal.slot,
+        portionGrams: meal.portionGrams,
+        kcal: meal.kcal,
+        protein: meal.protein,
+        fat: meal.fat,
+        carb: meal.carb,
+        foodItemId: meal.foodItemId,
+        menuItemId: meal.id,
+      }
       const sub = `${SLOT_LABELS[meal.slot]} · ${Math.round(meal.portionGrams)} г · ${Math.round(
         meal.kcal,
       )} ккал · Б ${roundMacro(meal.protein)} · Ж ${roundMacro(meal.fat)} · В ${roundMacro(meal.carb)}`
@@ -112,6 +136,15 @@ export default defineComponent({
     }
 
     function openDishDetails(hit: DishSearchHit) {
+      recipeDraft.value = {
+        name: hit.name,
+        portionGrams: 100,
+        kcal: hit.kcalPer100,
+        protein: hit.proteinPer100,
+        fat: hit.fatPer100,
+        carb: hit.carbPer100,
+        foodItemId: hit.id,
+      }
       const sub = `${Math.round(hit.kcalPer100)} ккал/100 г · Б ${roundMacro(
         hit.proteinPer100,
       )} · Ж ${roundMacro(hit.fatPer100)} · В ${roundMacro(hit.carbPer100)}`
@@ -119,12 +152,48 @@ export default defineComponent({
     }
 
     function openRecipeByName(name: string) {
+      recipeDraft.value = {
+        name,
+        portionGrams: 100,
+        kcal: 0,
+        protein: 0,
+        fat: 0,
+        carb: 0,
+        foodItemId: null,
+      }
       void runDetails(name, 'AI-рецепт за назвою', () => fetchRecipeByName(name))
+    }
+
+    async function onSaveRecipe() {
+      const draft = recipeDraft.value
+      const details = detailsData.value
+      if (!draft || !details) return
+      savingRecipe.value = true
+      try {
+        await saveRecipe({
+          menuItemId: draft.menuItemId,
+          foodItemId: draft.foodItemId,
+          name: draft.name,
+          slot: draft.slot,
+          portionGrams: draft.portionGrams,
+          kcal: draft.kcal,
+          protein: draft.protein,
+          fat: draft.fat,
+          carb: draft.carb,
+          details,
+        })
+        toast.success('Страву збережено в каталог')
+      } catch (err: unknown) {
+        toast.error(extractErrorMessage(err) ?? 'Не вдалося зберегти рецепт')
+      } finally {
+        savingRecipe.value = false
+      }
     }
 
     function closeDetails() {
       detailsOpen.value = false
       detailsData.value = null
+      recipeDraft.value = null
       detailsError.value = null
     }
 
@@ -256,7 +325,16 @@ export default defineComponent({
     return () => (
       <section class="space-y-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h1 class="text-2xl font-bold text-gray-900">Меню на тиждень</h1>
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Меню на тиждень</h1>
+            <p class="mt-1 text-sm text-gray-500">
+              Збережені страви — у спільній базі{' '}
+              <NuxtLink to="/dishes" class="font-medium text-brand-700 hover:text-brand-800">
+                Стравах
+              </NuxtLink>
+              .
+            </p>
+          </div>
           <button
             type="button"
             onClick={onGenerate}
@@ -515,6 +593,15 @@ export default defineComponent({
                         {detailsData.value.tips}
                       </div>
                     ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => void onSaveRecipe()}
+                      disabled={savingRecipe.value}
+                      class={`${btnSecondaryClass} w-full`}
+                    >
+                      {savingRecipe.value ? 'Зберігаємо…' : 'Зберегти в каталог страв'}
+                    </button>
                   </div>
                 ) : null}
               </div>

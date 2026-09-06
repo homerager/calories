@@ -676,7 +676,7 @@ export default defineComponent({
                 Сьогодні
               </button>
             </div>
-            <div class="flex items-center justify-end w-full sm:mt-0 mt-3">
+            <div class="hidden items-center justify-end w-full sm:mt-0 mt-3">
               <button
                 type="button"
                 onClick={() => void onCopyYesterday()}
@@ -747,9 +747,9 @@ export default defineComponent({
             <button
               type="button"
               onClick={openManualDraft}
-              class={`${btnSecondaryClass} ml-auto px-3 py-1.5 text-sm`}
+              class={`${btnSecondaryClass} md:ml-auto px-3 py-1.5 text-sm`}
             >
-              Вручну
+              Створити
             </button>
           </div>
 

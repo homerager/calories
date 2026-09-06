@@ -128,6 +128,7 @@ export default defineComponent({
     const navLinks = [
       { to: '/diary', label: 'Щоденник' },
       { to: '/menu', label: 'Меню' },
+      { to: '/dishes', label: 'Страви' },
       { to: '/exercise', label: 'Активність' },
       //{ to: '/water', label: 'Вода' },
       { to: '/stats', label: 'Статистика' },
@@ -157,6 +158,7 @@ export default defineComponent({
       today: () => svg(<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>),
       diary: () => svg(<><path d="M3 2v7a2 2 0 0 0 4 0V2M5 2v20" /><path d="M17 2c-1.7 0-3 2.7-3 6s1.3 5 3 5V2Zm0 11v9" /></>),
       menu: () => svg(<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18M15 3v18" /></>),
+      dishes: () => svg(<><path d="M4 11h16" /><path d="M6 11V7a6 6 0 0 1 12 0v4" /><path d="M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /></>),
       exercise: () => svg(<path d="M22 12h-4l-3 9L9 3l-3 9H2" />),
       stats: () => svg(<><path d="M3 17l6-6 4 4 8-8" /><path d="M17 7h4v4" /></>),
       water: () => svg(<path d="M12 2.7 6.8 8.4a7 7 0 1 0 10.4 0Z" />),
@@ -175,6 +177,7 @@ export default defineComponent({
       { to: '/stats', label: 'Статистика', icon: icons.stats },
     ]
     const drawerSecondary: DrawerLink[] = [
+      { to: '/dishes', label: 'Страви', icon: icons.dishes },
       { to: '/water', label: 'Вода', icon: icons.water },
       { to: '/profile', label: 'Профіль', icon: icons.profile },
       { to: '/settings', label: 'Налаштування', icon: icons.settings },

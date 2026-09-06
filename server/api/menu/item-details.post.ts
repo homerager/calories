@@ -1,11 +1,12 @@
 import { prisma } from '../../utils/prisma'
 import { menuItemDetailsSchema } from '../../utils/menuSchemas'
+import { findMenuDishByName, parseRecipeJson, upsertMenuDish } from '../../utils/recipe'
 import { AiProviderError, generateDishDetails, statusForAiError } from '../../ai'
 import type { DishDetails } from '../../ai'
 import type { Prisma } from '../../../prisma/generated/client/client'
 
-// Деталі страви меню (інгредієнти/кроки/поради). Кешується у MenuItem.detailsJson:
-// перший запит викликає AI, наступні повертають збережене без AI-виклику.
+// Деталі страви меню. Порядок кешу: MenuItem.detailsJson → глобальний MenuDish → AI.
+
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event)
 
@@ -30,12 +31,14 @@ export default defineEventHandler(async (event) => {
     select: {
       id: true,
       name: true,
+      slot: true,
       portionGrams: true,
       kcal: true,
       protein: true,
       fat: true,
       carb: true,
       detailsJson: true,
+      foodItemId: true,
       plan: { select: { userId: true } },
     },
   })
@@ -44,9 +47,36 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Not Found', message: 'Страву не знайдено' })
   }
 
-  // Кеш: якщо деталі вже згенеровані — повертаємо без AI.
-  if (item.detailsJson) {
-    return { details: item.detailsJson as unknown as DishDetails, cacheHit: true }
+  const meal = item
+
+  async function persistGlobal(details: DishDetails) {
+    await upsertMenuDish(prisma, {
+      name: meal.name,
+      slot: meal.slot,
+      portionGrams: meal.portionGrams,
+      kcal: meal.kcal,
+      protein: meal.protein,
+      fat: meal.fat,
+      carb: meal.carb,
+      details,
+      foodItemId: meal.foodItemId,
+    })
+  }
+
+  const local = parseRecipeJson(meal.detailsJson)
+  if (local) {
+    await persistGlobal(local)
+    return { details: local, cacheHit: true }
+  }
+
+  const global = await findMenuDishByName(prisma, meal.name)
+  const globalDetails = global ? parseRecipeJson(global.detailsJson) : null
+  if (globalDetails) {
+    await prisma.menuItem.update({
+      where: { id: meal.id },
+      data: { detailsJson: globalDetails as unknown as Prisma.InputJsonValue },
+    })
+    return { details: globalDetails, cacheHit: true }
   }
 
   try {
@@ -54,19 +84,20 @@ export default defineEventHandler(async (event) => {
       userId: user.id,
       preferred: body.data.provider,
       input: {
-        name: item.name,
-        portionGrams: item.portionGrams,
-        kcal: item.kcal,
-        protein: item.protein,
-        fat: item.fat,
-        carb: item.carb,
+        name: meal.name,
+        portionGrams: meal.portionGrams,
+        kcal: meal.kcal,
+        protein: meal.protein,
+        fat: meal.fat,
+        carb: meal.carb,
       },
     })
 
     await prisma.menuItem.update({
-      where: { id: item.id },
+      where: { id: meal.id },
       data: { detailsJson: result.data as unknown as Prisma.InputJsonValue },
     })
+    await persistGlobal(result.data)
 
     return {
       details: result.data,
